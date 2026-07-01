@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser, AuthUser } from '../auth/current-user.decorator';
 import { TasksService } from './tasks.service';
 import { CreateTaskDto } from './dto/create-task.dto';
+import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
 
 /**
  * Rotas de Task, aninhadas sob um workspace. Todas exigem autenticação (JWT).
@@ -26,5 +27,14 @@ export class TasksController {
   @Get()
   list(@Param('workspaceId') workspaceId: string) {
     return this.tasksService.listByWorkspace(workspaceId);
+  }
+
+  @Patch(':taskId/status')
+  updateStatus(
+    @Param('workspaceId') workspaceId: string,
+    @Param('taskId') taskId: string,
+    @Body() dto: UpdateTaskStatusDto,
+  ) {
+    return this.tasksService.updateStatus(workspaceId, taskId, dto.status);
   }
 }
