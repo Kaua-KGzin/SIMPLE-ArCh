@@ -121,6 +121,33 @@ export class TasksService {
     });
   }
 
+  /**
+   * "Código" da task: o diff do PR que a referenciou (via webhook).
+   * Usa o token do dono do workspace, como nas demais chamadas ao GitHub.
+   */
+  async getCode(workspaceId: string, taskId: string) {
+    const task = await this.prisma.task.findFirst({
+      where: { id: taskId, workspaceId },
+      include: { workspace: { include: { owner: true } } },
+    });
+    if (!task) throw new NotFoundException('Task não encontrada neste workspace.');
+    if (!task.githubPrNumber) {
+      throw new NotFoundException(
+        'Nenhum PR referenciou esta task ainda. Crie a branch feature/issue-' +
+          `${task.githubIssueNumber ?? 'N'} e abra um PR.`,
+      );
+    }
+    const { workspace } = task;
+    if (!workspace.githubRepoFullName || !workspace.owner.githubAccessToken) {
+      throw new BadRequestException('Workspace sem repositório ou sem token do dono.');
+    }
+    return this.githubApi.getPullRequestCode(
+      workspace.owner.githubAccessToken,
+      workspace.githubRepoFullName,
+      task.githubPrNumber,
+    );
+  }
+
   /** Lista as tasks de um workspace (board), já com o assignee para os avatares. */
   async listByWorkspace(workspaceId: string): Promise<Task[]> {
     return this.prisma.task.findMany({

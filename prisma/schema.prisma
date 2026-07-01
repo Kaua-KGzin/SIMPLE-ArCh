@@ -121,6 +121,9 @@ model Task {
   // Por isso a unicidade é composta: (workspaceId + githubIssueNumber).
   githubIssueNumber Int?
   githubIssueId     String? // id global imutável da issue
+  // Último PR que referenciou esta task (preenchido pelo webhook de pull_request).
+  // Permite mostrar o CÓDIGO (diff, +/- linhas) da task direto no board.
+  githubPrNumber    Int?
 
   workspaceId String
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)

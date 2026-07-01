@@ -115,7 +115,9 @@ export class GithubWebhookService {
         workspaceId: workspace.id,
         githubIssueNumber: { in: taskNumbers },
       },
-      data: { status: newStatus },
+      // Além do status, guardamos o nº do PR: é ele que permite à UI
+      // mostrar o diff/código da task ("qual PR resolve esta task?").
+      data: { status: newStatus, githubPrNumber: pr.number },
     });
 
     this.logger.log(

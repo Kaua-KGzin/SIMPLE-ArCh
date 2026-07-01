@@ -48,6 +48,11 @@ export class WorkspacesController {
     return this.workspacesService.getById(user.id, id);
   }
 
+  @Get(':id/activity')
+  getActivity(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.workspacesService.getActivity(user.id, id);
+  }
+
   @Patch(':id/repo')
   linkRepo(
     @CurrentUser() user: AuthUser,

@@ -3,6 +3,8 @@ import { Link, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { Avatar } from '../components/Avatar';
 import { MembersPanel } from '../components/MembersPanel';
+import { ActivityPanel } from '../components/ActivityPanel';
+import { CodeModal } from '../components/CodeModal';
 import type { Member, Task, TaskStatus, Workspace } from '../types';
 
 const COLUMNS: { status: TaskStatus; label: string; accent: string }[] = [
@@ -26,6 +28,8 @@ export function Board() {
 
   const [showForm, setShowForm] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
+  const [showActivity, setShowActivity] = useState(false);
+  const [codeTask, setCodeTask] = useState<string | null>(null); // task do modal de código
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
@@ -127,6 +131,12 @@ export function Board() {
             Equipe
           </button>
           <button
+            onClick={() => setShowActivity(true)}
+            className="rounded-lg border border-zinc-700 px-4 py-2 text-sm hover:border-zinc-500"
+          >
+            Atividade
+          </button>
+          <button
             onClick={() => setShowForm((v) => !v)}
             className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium hover:bg-indigo-500"
           >
@@ -203,17 +213,28 @@ export function Board() {
                       {task.assignee && <Avatar user={task.assignee} size={5} />}
                     </div>
 
-                    {task.githubIssueNumber != null && workspace?.githubRepoFullName && (
-                      <a
-                        href={`https://github.com/${workspace.githubRepoFullName}/issues/${task.githubIssueNumber}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="mt-1 inline-block text-xs text-zinc-500 hover:text-indigo-400"
-                      >
-                        #{task.githubIssueNumber}
-                      </a>
-                    )}
+                    <div className="mt-1 flex items-center gap-3 text-xs">
+                      {task.githubIssueNumber != null && workspace?.githubRepoFullName && (
+                        <a
+                          href={`https://github.com/${workspace.githubRepoFullName}/issues/${task.githubIssueNumber}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-zinc-500 hover:text-indigo-400"
+                        >
+                          #{task.githubIssueNumber}
+                        </a>
+                      )}
+                      {task.githubPrNumber != null && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setCodeTask(task.id); }}
+                          title={`Ver diff do PR #${task.githubPrNumber}`}
+                          className="font-mono text-zinc-500 hover:text-green-400"
+                        >
+                          {'</>'} PR #{task.githubPrNumber}
+                        </button>
+                      )}
+                    </div>
 
                     {openTask === task.id && (
                       <div className="mt-3 space-y-2 border-t border-zinc-800 pt-3" onClick={(e) => e.stopPropagation()}>
@@ -244,6 +265,14 @@ export function Board() {
           );
         })}
       </div>
+
+      {showActivity && workspaceId && (
+        <ActivityPanel workspaceId={workspaceId} onClose={() => setShowActivity(false)} />
+      )}
+
+      {codeTask && workspaceId && (
+        <CodeModal workspaceId={workspaceId} taskId={codeTask} onClose={() => setCodeTask(null)} />
+      )}
 
       {showMembers && workspaceId && (
         <MembersPanel

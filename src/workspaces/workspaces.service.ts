@@ -99,6 +99,22 @@ export class WorkspacesService {
     });
   }
 
+  /** Feed de atividade do repo (commits + PRs recentes). Exige ser membro. */
+  async getActivity(userId: string, workspaceId: string) {
+    await this.assertMembership(userId, workspaceId);
+    const workspace = await this.prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      include: { owner: true },
+    });
+    if (!workspace?.githubRepoFullName || !workspace.owner.githubAccessToken) {
+      throw new BadRequestException('Workspace sem repositório vinculado.');
+    }
+    return this.githubApi.getRepoActivity(
+      workspace.owner.githubAccessToken,
+      workspace.githubRepoFullName,
+    );
+  }
+
   // --------------------------------------------------------------------------
   //  VÍNCULO DE REPOSITÓRIO
   // --------------------------------------------------------------------------

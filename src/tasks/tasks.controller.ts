@@ -30,6 +30,11 @@ export class TasksController {
     return this.tasksService.listByWorkspace(workspaceId);
   }
 
+  @Get(':taskId/code')
+  getCode(@Param('workspaceId') workspaceId: string, @Param('taskId') taskId: string) {
+    return this.tasksService.getCode(workspaceId, taskId);
+  }
+
   @Patch(':taskId')
   update(
     @Param('workspaceId') workspaceId: string,

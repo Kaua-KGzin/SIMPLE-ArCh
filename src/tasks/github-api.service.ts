@@ -93,4 +93,110 @@ export class GithubApiService {
     const repo = (await res.json()) as { id: number; full_name: string; private: boolean };
     return { id: repo.id, fullName: repo.full_name, private: repo.private };
   }
+
+  /** GET autenticado genérico na API do GitHub (reuso interno). */
+  private async get<T>(encryptedToken: string, path: string): Promise<T> {
+    const token = CryptoUtil.decrypt(encryptedToken);
+    const res = await fetch(`${this.baseUrl}${path}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    });
+    if (res.status === 404) throw new NotFoundException('Recurso não encontrado no GitHub.');
+    if (!res.ok) {
+      const detail = await res.text();
+      this.logger.error(`Falha em GET ${path}: ${res.status} ${detail}`);
+      throw new InternalServerErrorException('Falha ao consultar o GitHub.');
+    }
+    return res.json() as Promise<T>;
+  }
+
+  /**
+   * "Código" de um PR: metadados (estado, +/-, arquivos) + diffs por arquivo.
+   * O `patch` é o diff unificado que a UI colore linha a linha.
+   */
+  async getPullRequestCode(encryptedToken: string, repoFullName: string, prNumber: number) {
+    const [pr, files] = await Promise.all([
+      this.get<{
+        title: string;
+        state: string;
+        merged: boolean;
+        additions: number;
+        deletions: number;
+        changed_files: number;
+        html_url: string;
+        head: { ref: string };
+        user: { login: string; avatar_url: string };
+      }>(encryptedToken, `/repos/${repoFullName}/pulls/${prNumber}`),
+      this.get<
+        { filename: string; status: string; additions: number; deletions: number; patch?: string }[]
+      >(encryptedToken, `/repos/${repoFullName}/pulls/${prNumber}/files?per_page=50`),
+    ]);
+
+    return {
+      number: prNumber,
+      title: pr.title,
+      state: pr.merged ? 'merged' : pr.state,
+      branch: pr.head.ref,
+      author: { login: pr.user.login, avatarUrl: pr.user.avatar_url },
+      additions: pr.additions,
+      deletions: pr.deletions,
+      changedFiles: pr.changed_files,
+      url: pr.html_url,
+      files: files.map((f) => ({
+        filename: f.filename,
+        status: f.status,
+        additions: f.additions,
+        deletions: f.deletions,
+        patch: f.patch ?? null, // binários/arquivos enormes vêm sem patch
+      })),
+    };
+  }
+
+  /** Atividade recente do repo: últimos commits e PRs (feed do workspace). */
+  async getRepoActivity(encryptedToken: string, repoFullName: string) {
+    const [commits, pulls] = await Promise.all([
+      this.get<
+        {
+          sha: string;
+          html_url: string;
+          commit: { message: string; author: { name: string; date: string } };
+          author: { login: string; avatar_url: string } | null;
+        }[]
+      >(encryptedToken, `/repos/${repoFullName}/commits?per_page=15`),
+      this.get<
+        {
+          number: number;
+          title: string;
+          state: string;
+          merged_at: string | null;
+          html_url: string;
+          created_at: string;
+          user: { login: string; avatar_url: string };
+        }[]
+      >(encryptedToken, `/repos/${repoFullName}/pulls?state=all&sort=updated&direction=desc&per_page=10`),
+    ]);
+
+    return {
+      commits: commits.map((c) => ({
+        sha: c.sha.slice(0, 7),
+        message: c.commit.message.split('\n')[0],
+        author: c.author?.login ?? c.commit.author.name,
+        avatarUrl: c.author?.avatar_url ?? null,
+        date: c.commit.author.date,
+        url: c.html_url,
+      })),
+      pulls: pulls.map((p) => ({
+        number: p.number,
+        title: p.title,
+        state: p.merged_at ? 'merged' : p.state,
+        author: p.user.login,
+        avatarUrl: p.user.avatar_url,
+        date: p.created_at,
+        url: p.html_url,
+      })),
+    };
+  }
 }

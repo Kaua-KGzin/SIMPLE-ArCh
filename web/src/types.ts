@@ -32,6 +32,7 @@ export interface Task {
   description: string | null;
   status: TaskStatus;
   githubIssueNumber: number | null;
+  githubPrNumber: number | null;
   workspaceId: string;
   assigneeId: string | null;
   assignee?: PublicUser | null;
