@@ -1,0 +1,158 @@
+// ============================================================================
+//  SIMPLE ArCh — Schema do Banco de Dados (Prisma ORM)
+// ----------------------------------------------------------------------------
+//  Este arquivo é a "fonte da verdade" do nosso modelo de dados.
+//  A partir dele o Prisma gera:
+//    1) As migrations SQL (versionamento do banco)
+//    2) Um Client TypeScript 100% tipado (autocompletar + segurança de tipos)
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ----------------------------------------------------------------------------
+//  USER
+//  Representa uma pessoa autenticada via GitHub OAuth.
+//  Guardamos o access_token do GitHub porque PRECISAMOS agir em nome do usuário
+//  (ler issues, comentar em PRs, etc.). Esse token é SENSÍVEL → criptografado.
+// ----------------------------------------------------------------------------
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  avatarUrl String?
+
+  // --- Identidade no GitHub ---
+  // githubId é o identificador IMUTÁVEL do GitHub (o username pode mudar; o id, não).
+  // Por isso fazemos o "match" do usuário por githubId, nunca pelo login.
+  githubId    String  @unique
+  githubLogin String
+
+  // --- Credenciais OAuth do GitHub (NUNCA em texto puro) ---
+  // Armazenamos o token criptografado (AES-256-GCM). Ver src/common/crypto.util.ts
+  githubAccessToken  String? // ciphertext
+  githubRefreshToken String? // ciphertext (GitHub Apps usam refresh; OAuth Apps clássicos não)
+  githubTokenScope   String? // ex.: "repo,read:user"
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // --- Relações ---
+  // Um usuário pode ser dono de vários workspaces...
+  ownedWorkspaces  Workspace[]        @relation("WorkspaceOwner")
+  // ...e participar (como membro) de vários workspaces. Relação N:N via tabela pivô.
+  memberships      WorkspaceMember[]
+  // Tarefas que ele criou e tarefas atribuídas a ele.
+  createdTasks     Task[]             @relation("TaskCreator")
+  assignedTasks    Task[]             @relation("TaskAssignee")
+
+  @@map("users")
+}
+
+// ----------------------------------------------------------------------------
+//  WORKSPACE
+//  É o "guarda-chuva" organizacional (equivale a um Team/Org no Linear).
+//  Cada workspace pode estar vinculado a UM repositório do GitHub.
+// ----------------------------------------------------------------------------
+model Workspace {
+  id   String @id @default(cuid())
+  name String
+  slug String @unique // usado em URLs amigáveis: /w/acme-eng
+
+  // --- Vínculo com o repositório do GitHub ---
+  // Guardamos o ID numérico do repo (imutável) + o "fullName" (owner/repo) para exibição.
+  githubRepoId       String? @unique
+  githubRepoFullName String? // ex.: "acme/backend"
+
+  // Dono do workspace (FK explícita para clareza).
+  ownerId String
+  owner   User   @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // --- Relações ---
+  members WorkspaceMember[]
+  tasks   Task[]
+
+  @@map("workspaces")
+}
+
+// ----------------------------------------------------------------------------
+//  WORKSPACE_MEMBER  (tabela pivô / join table)
+//  Modela a relação N:N entre User e Workspace, MAS com atributos extras (o "role").
+//  Quando uma relação N:N carrega dados próprios, ela DEVE virar um modelo explícito.
+// ----------------------------------------------------------------------------
+model WorkspaceMember {
+  id String @id @default(cuid())
+
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  role     MemberRole @default(MEMBER)
+  joinedAt DateTime   @default(now())
+
+  // Um usuário não pode estar duas vezes no mesmo workspace.
+  @@unique([userId, workspaceId])
+  @@map("workspace_members")
+}
+
+// ----------------------------------------------------------------------------
+//  TASK
+//  Nossa unidade de trabalho. O ponto-chave da integração: ela é MAPEADA
+//  para uma issue do GitHub via githubIssueNumber.
+// ----------------------------------------------------------------------------
+model Task {
+  id          String     @id @default(cuid())
+  title       String
+  description String?
+  status      TaskStatus @default(BACKLOG)
+
+  // --- Mapeamento com o GitHub ---
+  // O número da issue é único DENTRO de um repositório, não globalmente.
+  // Por isso a unicidade é composta: (workspaceId + githubIssueNumber).
+  githubIssueNumber Int?
+  githubIssueId     String? // id global imutável da issue
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  creatorId String
+  creator   User   @relation("TaskCreator", fields: [creatorId], references: [id])
+
+  assigneeId String?
+  assignee   User?   @relation("TaskAssignee", fields: [assigneeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([workspaceId, githubIssueNumber])
+  @@index([status])
+  @@map("tasks")
+}
+
+// ----------------------------------------------------------------------------
+//  ENUMS
+//  Enums dão segurança de tipo e viram tipos nativos no PostgreSQL.
+// ----------------------------------------------------------------------------
+enum MemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum TaskStatus {
+  BACKLOG
+  TODO
+  IN_PROGRESS
+  IN_REVIEW // <- o webhook de Pull Request muda a task para cá automaticamente
+  DONE
+}
