@@ -4,6 +4,7 @@ import { CurrentUser, AuthUser } from '../auth/current-user.decorator';
 import { TasksService } from './tasks.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
+import { UpdateTaskDto } from './dto/update-task.dto';
 
 /**
  * Rotas de Task, aninhadas sob um workspace. Todas exigem autenticação (JWT).
@@ -27,6 +28,15 @@ export class TasksController {
   @Get()
   list(@Param('workspaceId') workspaceId: string) {
     return this.tasksService.listByWorkspace(workspaceId);
+  }
+
+  @Patch(':taskId')
+  update(
+    @Param('workspaceId') workspaceId: string,
+    @Param('taskId') taskId: string,
+    @Body() dto: UpdateTaskDto,
+  ) {
+    return this.tasksService.update(workspaceId, taskId, dto);
   }
 
   @Patch(':taskId/status')

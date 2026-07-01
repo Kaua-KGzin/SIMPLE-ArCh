@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
-import type { Task, TaskStatus, Workspace } from '../types';
+import { Avatar } from '../components/Avatar';
+import { MembersPanel } from '../components/MembersPanel';
+import type { Member, Task, TaskStatus, Workspace } from '../types';
 
 const COLUMNS: { status: TaskStatus; label: string; accent: string }[] = [
   { status: 'BACKLOG', label: 'Backlog', accent: 'border-t-zinc-500' },
@@ -13,25 +15,32 @@ const COLUMNS: { status: TaskStatus; label: string; accent: string }[] = [
 
 /**
  * Board Kanban do workspace. Mover task = arrastar o card para outra coluna
- * (HTML5 drag & drop nativo — sem lib externa para o MVP).
+ * (HTML5 drag & drop nativo). Atribuição de responsável direto no card.
  */
 export function Board() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [members, setMembers] = useState<Member[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  // Formulário de nova task
   const [showForm, setShowForm] = useState(false);
+  const [showMembers, setShowMembers] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
 
   const [dragOver, setDragOver] = useState<TaskStatus | null>(null);
+  const [openTask, setOpenTask] = useState<string | null>(null); // card expandido
 
   useEffect(() => {
     if (!workspaceId) return;
-    api<Workspace>(`/workspaces/${workspaceId}`).then(setWorkspace).catch((e) => setError(e.message));
+    api<Workspace>(`/workspaces/${workspaceId}`)
+      .then((ws) => {
+        setWorkspace(ws);
+        setMembers(ws.members ?? []);
+      })
+      .catch((e) => setError(e.message));
     api<Task[]>(`/workspaces/${workspaceId}/tasks`).then(setTasks).catch((e) => setError(e.message));
   }, [workspaceId]);
 
@@ -70,6 +79,18 @@ export function Board() {
     }
   }
 
+  async function assignTask(taskId: string, assigneeId: string | null) {
+    try {
+      const updated = await api<Task>(`/workspaces/${workspaceId}/tasks/${taskId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ assigneeId }),
+      });
+      setTasks((ts) => ts.map((t) => (t.id === taskId ? updated : t)));
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
   return (
     <div className="min-h-screen px-6 py-8">
       <header className="mb-6 flex items-center justify-between">
@@ -87,15 +108,38 @@ export function Board() {
             </a>
           )}
         </div>
-        <button
-          onClick={() => setShowForm((v) => !v)}
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium hover:bg-indigo-500"
-        >
-          {showForm ? 'Cancelar' : '+ Nova task'}
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Avatares da equipe (resumo) */}
+          <button onClick={() => setShowMembers(true)} className="flex -space-x-2" title="Equipe">
+            {members.slice(0, 4).map((m) => (
+              <Avatar key={m.id} user={m.user} size={8} />
+            ))}
+            {members.length > 4 && (
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-800 text-xs">
+                +{members.length - 4}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setShowMembers(true)}
+            className="rounded-lg border border-zinc-700 px-4 py-2 text-sm hover:border-zinc-500"
+          >
+            Equipe
+          </button>
+          <button
+            onClick={() => setShowForm((v) => !v)}
+            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium hover:bg-indigo-500"
+          >
+            {showForm ? 'Cancelar' : '+ Nova task'}
+          </button>
+        </div>
       </header>
 
-      {error && <p className="mb-4 rounded-lg bg-red-950 px-4 py-2 text-sm text-red-300">{error}</p>}
+      {error && (
+        <p className="mb-4 rounded-lg bg-red-950 px-4 py-2 text-sm text-red-300" onClick={() => setError(null)}>
+          {error}
+        </p>
+      )}
 
       {showForm && (
         <form onSubmit={createTask} className="mb-6 space-y-3 rounded-xl border border-zinc-800 bg-zinc-900 p-5">
@@ -151,9 +195,14 @@ export function Board() {
                     key={task.id}
                     draggable
                     onDragStart={(e) => e.dataTransfer.setData('taskId', task.id)}
+                    onClick={() => setOpenTask((cur) => (cur === task.id ? null : task.id))}
                     className="cursor-grab rounded-lg border border-zinc-800 bg-zinc-950 p-3 text-sm shadow transition hover:border-zinc-600 active:cursor-grabbing"
                   >
-                    <p className="font-medium">{task.title}</p>
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-medium">{task.title}</p>
+                      {task.assignee && <Avatar user={task.assignee} size={5} />}
+                    </div>
+
                     {task.githubIssueNumber != null && workspace?.githubRepoFullName && (
                       <a
                         href={`https://github.com/${workspace.githubRepoFullName}/issues/${task.githubIssueNumber}`}
@@ -165,6 +214,29 @@ export function Board() {
                         #{task.githubIssueNumber}
                       </a>
                     )}
+
+                    {openTask === task.id && (
+                      <div className="mt-3 space-y-2 border-t border-zinc-800 pt-3" onClick={(e) => e.stopPropagation()}>
+                        {task.description && (
+                          <p className="whitespace-pre-wrap text-xs text-zinc-400">{task.description}</p>
+                        )}
+                        <label className="block text-xs text-zinc-500">
+                          Responsável
+                          <select
+                            value={task.assigneeId ?? ''}
+                            onChange={(e) => void assignTask(task.id, e.target.value || null)}
+                            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-200"
+                          >
+                            <option value="">— ninguém —</option>
+                            {members.map((m) => (
+                              <option key={m.user.id} value={m.user.id}>
+                                {m.user.name ?? m.user.githubLogin}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -172,6 +244,15 @@ export function Board() {
           );
         })}
       </div>
+
+      {showMembers && workspaceId && (
+        <MembersPanel
+          workspaceId={workspaceId}
+          members={members}
+          onChange={setMembers}
+          onClose={() => setShowMembers(false)}
+        />
+      )}
     </div>
   );
 }

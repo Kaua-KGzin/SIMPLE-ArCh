@@ -12,6 +12,17 @@ interface GithubRepository {
   full_name: string;
 }
 
+interface GithubIssuesPayload {
+  action: string; // 'opened' | 'edited' | 'closed' | 'reopened' | 'deleted' ...
+  issue: {
+    id: number;
+    number: number;
+    title: string;
+    body: string | null;
+  };
+  repository: GithubRepository;
+}
+
 interface GithubPullRequestPayload {
   action: string; // 'opened' | 'synchronize' | 'reopened' | 'closed' ...
   pull_request: {
@@ -58,7 +69,7 @@ export class GithubWebhookService {
         await this.handlePullRequest(payload as GithubPullRequestPayload);
         break;
       case 'issues':
-        await this.handleIssues(payload);
+        await this.handleIssues(payload as GithubIssuesPayload);
         break;
       default:
         this.logger.debug(`Evento ignorado: ${eventType}`);
@@ -112,8 +123,85 @@ export class GithubWebhookService {
     );
   }
 
-  /** Placeholder: ex.: criar Task quando uma issue é aberta no GitHub. */
-  private async handleIssues(_payload: unknown): Promise<void> {
-    this.logger.debug('Evento de issue recebido (handler a implementar).');
+  /**
+   * GitHub -> Plataforma: sincroniza Tasks quando issues mudam no GitHub.
+   *
+   *   opened   -> cria a Task (se ainda não existir)
+   *   edited   -> atualiza título/descrição
+   *   closed   -> Task DONE
+   *   reopened -> Task volta para TODO
+   *   deleted  -> remove a Task
+   *
+   * CUIDADO COM O LOOP: quando a PLATAFORMA cria a Issue, o GitHub dispara
+   * `issues.opened` de volta para nós. O upsert pela chave única
+   * (workspaceId + githubIssueNumber) torna isso inofensivo: a Task já
+   * existe, então nada é duplicado. Idempotência > flags de "ignorar".
+   */
+  private async handleIssues(payload: GithubIssuesPayload): Promise<void> {
+    const { action, issue, repository } = payload;
+
+    const workspace = await this.prisma.workspace.findUnique({
+      where: { githubRepoId: String(repository.id) },
+    });
+    if (!workspace) {
+      this.logger.warn(`Repo ${repository.full_name} não vinculado a nenhum workspace.`);
+      return;
+    }
+
+    const key = {
+      workspaceId_githubIssueNumber: {
+        workspaceId: workspace.id,
+        githubIssueNumber: issue.number,
+      },
+    };
+
+    switch (action) {
+      case 'opened':
+      case 'reopened':
+        await this.prisma.task.upsert({
+          where: key,
+          // Se já existe (criada pela plataforma ou reaberta), só garante o status.
+          update: action === 'reopened' ? { status: TaskStatus.TODO } : {},
+          create: {
+            title: issue.title,
+            description: issue.body,
+            workspaceId: workspace.id,
+            // Issues criadas direto no GitHub não têm autor na plataforma;
+            // atribuímos a autoria ao dono do workspace.
+            creatorId: workspace.ownerId,
+            githubIssueNumber: issue.number,
+            githubIssueId: String(issue.id),
+            status: TaskStatus.BACKLOG,
+          },
+        });
+        this.logger.log(`Issue #${issue.number} (${action}) sincronizada como Task.`);
+        break;
+
+      case 'edited':
+        await this.prisma.task.updateMany({
+          where: { workspaceId: workspace.id, githubIssueNumber: issue.number },
+          data: { title: issue.title, description: issue.body },
+        });
+        this.logger.log(`Issue #${issue.number} editada → Task atualizada.`);
+        break;
+
+      case 'closed':
+        await this.prisma.task.updateMany({
+          where: { workspaceId: workspace.id, githubIssueNumber: issue.number },
+          data: { status: TaskStatus.DONE },
+        });
+        this.logger.log(`Issue #${issue.number} fechada → Task DONE.`);
+        break;
+
+      case 'deleted':
+        await this.prisma.task.deleteMany({
+          where: { workspaceId: workspace.id, githubIssueNumber: issue.number },
+        });
+        this.logger.log(`Issue #${issue.number} apagada → Task removida.`);
+        break;
+
+      default:
+        this.logger.debug(`Ação de issue ignorada: ${action}`);
+    }
   }
 }
