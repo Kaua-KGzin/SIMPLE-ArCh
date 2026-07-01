@@ -118,6 +118,16 @@ src/webhooks/github-webhook.service.ts     # HMAC, roteamento, Task->IN_REVIEW
 - [x] Backend: CORS habilitado (`FRONTEND_URL`) + rota `PATCH /workspaces/:wid/tasks/:tid/status`.
 - [x] Testado: front 200, API 401 sem token, CORS ok, mover task via PATCH funciona.
 
+### Feito (sessão 2026-07-01, parte 4 — COLABORAÇÃO)
+- [x] **Handler `issues` no webhook** (GitHub→Plataforma): opened cria Task (upsert idempotente
+      anti-loop), edited sincroniza, closed→DONE, reopened→TODO, deleted remove.
+      ✅ Testado localmente com HMAC válido simulando o GitHub.
+- [x] **PATCH /workspaces/:wid/tasks/:tid** — edita título/descrição/assignee
+      (assignee precisa ser membro; `null` desatribui). Tasks retornam `assignee` populado.
+- [x] **UI de equipe**: MembersPanel (convidar por githubLogin com role, remover),
+      avatares no header do board, card expandível com descrição + seletor de responsável.
+- [x] Commit `6361441` no GitHub. Sincronismo bidirecional COMPLETO nos dois sentidos.
+
 ### Documentação
 - **`docs/SETUP_GITHUB.md`** — guia passo a passo: criar OAuth App, túnel (ngrok), webhook
   do repo e teste ponta a ponta (login → criar Task → Issue → PR → IN_REVIEW → merge → DONE).
@@ -131,9 +141,9 @@ src/webhooks/github-webhook.service.ts     # HMAC, roteamento, Task->IN_REVIEW
 Tudo compila/testa/sobe. Para voltar ao trabalho:
 1. `docker compose up -d` (sobe o Postgres na 5433)
 2. `npm run start:dev`
-**Próxima tarefa decidida:** handler do evento **`issues`** no webhook (GitHub → Plataforma):
-issue criada no GitHub cria Task; issue editada/fechada sincroniza a Task. Fecha de vez o
-sincronismo bidirecional.
+**Próxima tarefa sugerida:** testar o ciclo completo com webhook REAL (ngrok + configurar
+webhook no repo, guia em docs/SETUP_GITHUB.md) e/ou proteger o webhook com fila (BullMQ).
+Rodar tudo: `docker compose up -d` + `node dist/main.js` + `cd web && npm run dev`.
 
 ### Pendente (próximos passos)
 - [ ] Handler do evento `issues` no webhook (GitHub → cria/atualiza Task).
