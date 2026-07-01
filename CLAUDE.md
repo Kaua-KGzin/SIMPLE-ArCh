@@ -89,6 +89,17 @@ src/webhooks/github-webhook.service.ts     # HMAC, roteamento, Task->IN_REVIEW
 - [x] **Docker Postgres** (`docker-compose.yml`) + **migration `init` aplicada** (tabelas criadas).
 - [x] **App sobe e responde**: login→302 GitHub, webhook sem assinatura→401, rota protegida→401.
 
+### Feito (sessão 2026-07-01)
+- [x] **CRUD de Workspace completo** (`src/workspaces/`): criar (slug único auto-gerado,
+      criador vira OWNER via transação), listar meus, detalhe+membros, deletar (só OWNER).
+- [x] **Vínculo de repo automático**: `PATCH /workspaces/:id/repo` — `GithubApiService.getRepo()`
+      busca o `githubRepoId` via API com o token do usuário; conflito se repo já vinculado a outro WS.
+- [x] **Convite de membros** por `githubLogin` (usuário precisa já ter logado) com role
+      ADMIN/MEMBER; remoção de membro (OWNER não removível). Autorização por role no service.
+- [x] `tsc --noEmit`, `nest build` e os 13 testes passam.
+- [x] **Repo publicado no GitHub**: https://github.com/Kaua-KGzin/SIMPLE-ArCh (branch `main`).
+      O passo 4.2 (seed manual) do SETUP_GITHUB.md está obsoleto — usar as rotas de workspace.
+
 ### Documentação
 - **`docs/SETUP_GITHUB.md`** — guia passo a passo: criar OAuth App, túnel (ngrok), webhook
   do repo e teste ponta a ponta (login → criar Task → Issue → PR → IN_REVIEW → merge → DONE).
@@ -102,12 +113,11 @@ src/webhooks/github-webhook.service.ts     # HMAC, roteamento, Task->IN_REVIEW
 Tudo compila/testa/sobe. Para voltar ao trabalho:
 1. `docker compose up -d` (sobe o Postgres na 5433)
 2. `npm run start:dev`
-**Próxima tarefa decidida:** implementar o **CRUD de Workspace** (criar workspace + vincular
-repo buscando `githubRepoId` automaticamente via API GitHub + convidar membros). Isso elimina
-o seed manual do passo 4.2 do `docs/SETUP_GITHUB.md`.
+**Próxima tarefa decidida:** handler do evento **`issues`** no webhook (GitHub → Plataforma):
+issue criada no GitHub cria Task; issue editada/fechada sincroniza a Task. Fecha de vez o
+sincronismo bidirecional.
 
 ### Pendente (próximos passos)
-- [ ] **CRUD de Workspace** (próximo a fazer — ver acima).
 - [ ] Handler do evento `issues` no webhook (GitHub → cria/atualiza Task).
 - [ ] CRUD de Workspace + vínculo de repo + convite de membros (roles) — hoje só existe via seed manual.
 - [ ] Preencher GITHUB_CLIENT_ID/SECRET reais p/ testar OAuth e criação de Issue de verdade.
