@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser, AuthUser } from '../auth/current-user.decorator';
 import { TasksService } from './tasks.service';
@@ -42,6 +42,12 @@ export class TasksController {
     @Body() dto: UpdateTaskDto,
   ) {
     return this.tasksService.update(workspaceId, taskId, dto);
+  }
+
+  @Delete(':taskId')
+  @HttpCode(204)
+  remove(@Param('workspaceId') workspaceId: string, @Param('taskId') taskId: string) {
+    return this.tasksService.remove(workspaceId, taskId);
   }
 
   @Patch(':taskId/status')

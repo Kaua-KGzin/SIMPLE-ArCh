@@ -94,6 +94,35 @@ export class GithubApiService {
     return { id: repo.id, fullName: repo.full_name, private: repo.private };
   }
 
+  /**
+   * Atualiza uma Issue (título/corpo/estado). Usado para manter o GitHub em
+   * sincronia quando a task muda NA PLATAFORMA (o outro lado do espelho).
+   */
+  async updateIssue(
+    encryptedToken: string,
+    repoFullName: string,
+    issueNumber: number,
+    data: { title?: string; body?: string | null; state?: 'open' | 'closed' },
+  ): Promise<void> {
+    const token = CryptoUtil.decrypt(encryptedToken);
+    const res = await fetch(`${this.baseUrl}/repos/${repoFullName}/issues/${issueNumber}`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const detail = await res.text();
+      this.logger.error(`Falha ao atualizar Issue #${issueNumber}: ${res.status} ${detail}`);
+      throw new InternalServerErrorException('Não foi possível atualizar a Issue no GitHub.');
+    }
+    this.logger.log(`Issue #${issueNumber} atualizada em ${repoFullName}.`);
+  }
+
   /** GET autenticado genérico na API do GitHub (reuso interno). */
   private async get<T>(encryptedToken: string, path: string): Promise<T> {
     const token = CryptoUtil.decrypt(encryptedToken);

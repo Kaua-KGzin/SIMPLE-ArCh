@@ -85,11 +85,58 @@ export class TasksService {
     });
     if (!task) throw new NotFoundException('Task não encontrada neste workspace.');
 
-    return this.prisma.task.update({
+    const updated = await this.prisma.task.update({
       where: { id: taskId },
       data: { status },
       include: taskInclude,
     });
+
+    // Espelha no GitHub: DONE fecha a Issue; sair de DONE reabre.
+    // (O webhook issues.closed que isso dispara é idempotente — sem loop.)
+    if (task.status !== status && (status === 'DONE' || task.status === 'DONE')) {
+      await this.syncIssue(workspaceId, task.githubIssueNumber, {
+        state: status === 'DONE' ? 'closed' : 'open',
+      });
+    }
+    return updated;
+  }
+
+  /**
+   * Sincroniza a Issue no GitHub em modo BEST-EFFORT: se o GitHub estiver
+   * fora do ar, a mudança local não é desfeita — só logamos o erro.
+   * (Consistência eventual; uma fila BullMQ tornaria isso resiliente.)
+   */
+  private async syncIssue(
+    workspaceId: string,
+    issueNumber: number | null,
+    data: { title?: string; body?: string | null; state?: 'open' | 'closed' },
+  ): Promise<void> {
+    if (!issueNumber) return;
+    try {
+      const workspace = await this.prisma.workspace.findUnique({
+        where: { id: workspaceId },
+        include: { owner: true },
+      });
+      if (!workspace?.githubRepoFullName || !workspace.owner.githubAccessToken) return;
+      await this.githubApi.updateIssue(
+        workspace.owner.githubAccessToken,
+        workspace.githubRepoFullName,
+        issueNumber,
+        data,
+      );
+    } catch (err) {
+      this.logger.error(`Sync da Issue #${issueNumber} falhou (seguindo sem desfazer):`, err);
+    }
+  }
+
+  /** Apaga a task. Issues não podem ser apagadas via API — fechamos a do GitHub. */
+  async remove(workspaceId: string, taskId: string): Promise<void> {
+    const task = await this.prisma.task.findFirst({ where: { id: taskId, workspaceId } });
+    if (!task) throw new NotFoundException('Task não encontrada neste workspace.');
+
+    await this.prisma.task.delete({ where: { id: taskId } });
+    await this.syncIssue(workspaceId, task.githubIssueNumber, { state: 'closed' });
+    this.logger.log(`Task ${taskId} removida (Issue #${task.githubIssueNumber ?? '-'} fechada).`);
   }
 
   /**
@@ -110,7 +157,7 @@ export class TasksService {
       }
     }
 
-    return this.prisma.task.update({
+    const updated = await this.prisma.task.update({
       where: { id: taskId },
       data: {
         title: dto.title,
@@ -119,6 +166,15 @@ export class TasksService {
       },
       include: taskInclude,
     });
+
+    // Título/descrição mudaram? Espelha na Issue do GitHub (best-effort).
+    if (dto.title !== undefined || dto.description !== undefined) {
+      await this.syncIssue(workspaceId, task.githubIssueNumber, {
+        title: dto.title,
+        body: dto.description,
+      });
+    }
+    return updated;
   }
 
   /**
