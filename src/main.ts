@@ -24,6 +24,10 @@ async function bootstrap(): Promise<void> {
 
   app.use(cookieParser());
 
+  // CORS: o frontend (Vite, porta 5173) é uma ORIGEM diferente da API (3000).
+  // Sem isto o navegador bloqueia as chamadas fetch do app React.
+  app.enableCors({ origin: process.env.FRONTEND_URL, credentials: true });
+
   // Valida e sanitiza DTOs automaticamente; remove campos não declarados.
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
 

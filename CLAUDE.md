@@ -23,7 +23,8 @@ GitHub**. Diferencial: **sincronismo bidirecional**.
 - **Backend:** Node.js + **NestJS** + TypeScript (Nest > Express puro por DI e POO nativas).
 - **Banco:** PostgreSQL + **Prisma ORM**.
 - **Auth:** GitHub OAuth + JWT próprio.
-- **Frontend:** AINDA NÃO INICIADO (foco atual 100% backend).
+- **Frontend:** React + Vite + TypeScript + Tailwind v4 + react-router (pasta `web/`).
+  Rodar: `cd web && npm run dev` (porta 5173). JWT no localStorage; API em `web/src/lib/api.ts`.
 
 ---
 
@@ -99,6 +100,23 @@ src/webhooks/github-webhook.service.ts     # HMAC, roteamento, Task->IN_REVIEW
 - [x] `tsc --noEmit`, `nest build` e os 13 testes passam.
 - [x] **Repo publicado no GitHub**: https://github.com/Kaua-KGzin/SIMPLE-ArCh (branch `main`).
       O passo 4.2 (seed manual) do SETUP_GITHUB.md está obsoleto — usar as rotas de workspace.
+
+### Validado com credenciais REAIS (sessão 2026-07-01, parte 2)
+- [x] OAuth App criado (Client ID `Ov23liKZ5GzsFykZLdee`); `.env` preenchido (não versionado).
+- [x] Login real: usuário `Kaua-KGzin` no banco com token cifrado.
+- [x] Workspace "SIMPLE ArCh" (slug `simple-arch`) vinculado ao repo `Kaua-KGzin/SIMPLE-ArCh`
+      com `githubRepoId` resolvido automaticamente via API. ✅ Fluxo Plataforma→GitHub validado:
+      Task criada gerou a **Issue #1** real no repo.
+- Dica de dev: JWT de teste pode ser assinado localmente com o JWT_SECRET
+  (payload `{ sub: <userId>, githubLogin }`). Falta testar: webhook real de PR (precisa túnel ngrok).
+
+### Feito (sessão 2026-07-01, parte 3 — FRONTEND v1)
+- [x] Scaffold `web/` (Vite react-ts) + Tailwind v4 (`@tailwindcss/vite`) + react-router-dom.
+- [x] Páginas: Login (botão GitHub), AuthSuccess (guarda JWT do `?token=`), Workspaces
+      (lista+criação com vínculo de repo), Board Kanban (5 colunas, criar task, drag & drop
+      nativo com atualização otimista, link p/ Issue).
+- [x] Backend: CORS habilitado (`FRONTEND_URL`) + rota `PATCH /workspaces/:wid/tasks/:tid/status`.
+- [x] Testado: front 200, API 401 sem token, CORS ok, mover task via PATCH funciona.
 
 ### Documentação
 - **`docs/SETUP_GITHUB.md`** — guia passo a passo: criar OAuth App, túnel (ngrok), webhook

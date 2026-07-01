@@ -69,6 +69,19 @@ export class TasksService {
     return task;
   }
 
+  /**
+   * Move a task de coluna no board (mudança manual de status).
+   * O webhook também muda status (PR aberto/mergeado); aqui é a via humana.
+   */
+  async updateStatus(workspaceId: string, taskId: string, status: Task['status']): Promise<Task> {
+    const task = await this.prisma.task.findFirst({
+      where: { id: taskId, workspaceId },
+    });
+    if (!task) throw new NotFoundException('Task não encontrada neste workspace.');
+
+    return this.prisma.task.update({ where: { id: taskId }, data: { status } });
+  }
+
   /** Lista as tasks de um workspace (board). */
   async listByWorkspace(workspaceId: string): Promise<Task[]> {
     return this.prisma.task.findMany({
