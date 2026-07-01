@@ -2,3 +2,7 @@ node_modules/
 dist/
 .env
 *.log
+
+# Memoria interna do Claude Code (notas/ids internos de desenvolvimento)
+CLAUDE.md
+.claude/
