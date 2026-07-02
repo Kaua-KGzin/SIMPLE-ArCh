@@ -9,6 +9,7 @@
     "start:dev": "nest start --watch",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
+    "vercel-build": "prisma generate && nest build && cd web && npm install && npm run build",
     "test": "jest"
   },
   "dependencies": {

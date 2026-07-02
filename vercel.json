@@ -1,0 +1,18 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run vercel-build",
+  "outputDirectory": "web/dist",
+  "framework": null,
+  "functions": {
+    "api/index.js": {
+      "includeFiles": "node_modules/.prisma/client/**"
+    }
+  },
+  "rewrites": [
+    { "source": "/auth/:path*", "destination": "/api" },
+    { "source": "/workspaces", "destination": "/api" },
+    { "source": "/workspaces/:path*", "destination": "/api" },
+    { "source": "/api/:path*", "destination": "/api" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
