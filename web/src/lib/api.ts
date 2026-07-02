@@ -1,6 +1,9 @@
 import { auth } from './auth';
 
-export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+// Em produção (Vercel) API e frontend vivem na MESMA origem ('' = relativo);
+// em dev o Vite roda na 5173 e a API na 3000, daí o fallback com localhost.
+export const API_URL =
+  import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? 'http://localhost:3000' : '');
 
 /**
  * Wrapper de fetch: injeta o Bearer token e trata erros de forma uniforme.
