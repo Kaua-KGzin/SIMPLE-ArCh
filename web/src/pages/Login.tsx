@@ -1,19 +1,112 @@
-import { API_URL } from '../lib/api';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { API_URL, api } from '../lib/api';
+import { auth } from '../lib/auth';
 
 /**
- * Tela de login. Não há formulário: a identidade vem 100% do GitHub.
- * O botão só redireciona para o backend, que inicia o fluxo OAuth.
+ * Tela de login. Duas formas de entrar, independentes:
+ *  - E-mail/senha: nossa conta local, sem depender do GitHub.
+ *  - GitHub: redireciona pro fluxo OAuth (necessário só se quiser
+ *    sincronizar tasks com Issues de um repositório).
  */
 export function Login() {
+  const navigate = useNavigate();
+  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const path = mode === 'login' ? '/auth/login' : '/auth/register';
+      const body =
+        mode === 'login' ? { email, password } : { email, password, name: name || undefined };
+      const { accessToken } = await api<{ accessToken: string }>(path, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      auth.setToken(accessToken);
+      navigate('/', { replace: true });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center space-y-8">
+    <div className="min-h-screen flex items-center justify-center p-6">
+      <div className="w-full max-w-sm space-y-8 text-center">
         <div>
           <h1 className="text-4xl font-bold tracking-tight">SIMPLE ArCh</h1>
           <p className="mt-2 text-zinc-400">
-            Gerencie projetos em equipe, sincronizado com o GitHub.
+            Gerencie projetos em equipe, com ou sem GitHub.
           </p>
         </div>
+
+        <form onSubmit={submit} className="space-y-3 text-left">
+          {error && <p className="rounded-lg bg-red-950 px-3 py-2 text-sm text-red-300">{error}</p>}
+
+          {mode === 'register' && (
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Nome (opcional)"
+              maxLength={100}
+              className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+            />
+          )}
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="E-mail"
+            required
+            maxLength={255}
+            className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+          />
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Senha"
+            required
+            minLength={mode === 'register' ? 8 : undefined}
+            maxLength={72}
+            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+            className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+          />
+
+          <button
+            disabled={busy}
+            className="w-full rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium hover:bg-indigo-500 disabled:opacity-50"
+          >
+            {busy ? 'Aguarde…' : mode === 'login' ? 'Entrar' : 'Criar conta'}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setMode(mode === 'login' ? 'register' : 'login');
+              setError(null);
+            }}
+            className="w-full text-center text-xs text-zinc-500 hover:text-zinc-300"
+          >
+            {mode === 'login' ? 'Não tem conta? Criar uma' : 'Já tem conta? Entrar'}
+          </button>
+        </form>
+
+        <div className="flex items-center gap-3 text-xs text-zinc-600">
+          <div className="h-px flex-1 bg-zinc-800" />
+          ou
+          <div className="h-px flex-1 bg-zinc-800" />
+        </div>
+
         <a
           href={`${API_URL}/auth/github/login`}
           className="inline-flex items-center gap-3 rounded-lg bg-zinc-100 px-6 py-3 font-medium text-zinc-900 transition hover:bg-white"

@@ -28,11 +28,15 @@ model User {
   name      String?
   avatarUrl String?
 
-  // --- Identidade no GitHub ---
+  // --- Login local (email/senha) — alternativa ao GitHub OAuth ---
+  // Hash bcrypt. Null para usuários que só entraram via GitHub.
+  passwordHash String?
+
+  // --- Identidade no GitHub (OPCIONAL: nem todo usuário conecta o GitHub) ---
   // githubId é o identificador IMUTÁVEL do GitHub (o username pode mudar; o id, não).
   // Por isso fazemos o "match" do usuário por githubId, nunca pelo login.
-  githubId    String  @unique
-  githubLogin String
+  githubId    String? @unique
+  githubLogin String?
 
   // --- Credenciais OAuth do GitHub (NUNCA em texto puro) ---
   // Armazenamos o token criptografado (AES-256-GCM). Ver src/common/crypto.util.ts

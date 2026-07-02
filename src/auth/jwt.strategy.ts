@@ -20,7 +20,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: { sub: string; githubLogin: string }) {
+  async validate(payload: { sub: string; githubLogin?: string | null }) {
     const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
     if (!user) throw new UnauthorizedException('Usuário não encontrado.');
     // Nunca devolvemos o token do GitHub aqui — só o necessário.

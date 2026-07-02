@@ -42,22 +42,25 @@ export class TasksService {
     });
 
     if (!workspace) throw new NotFoundException('Workspace não encontrado.');
-    if (!workspace.githubRepoFullName) {
-      throw new BadRequestException('Workspace não está vinculado a um repositório do GitHub.');
-    }
-    if (!workspace.owner.githubAccessToken) {
-      throw new BadRequestException('O dono do workspace não possui token do GitHub válido.');
+
+    // GitHub é OPCIONAL: só tentamos criar a Issue se o workspace tiver repo
+    // vinculado e o dono tiver token válido. Sem isso (ou se a chamada ao
+    // GitHub falhar), a task nasce só no Postgres — mesmo espírito
+    // best-effort do syncIssue() usado em update/remove.
+    let issue: { number: number; id: number } | null = null;
+    if (workspace.githubRepoFullName && workspace.owner.githubAccessToken) {
+      try {
+        issue = await this.githubApi.createIssue(
+          workspace.owner.githubAccessToken,
+          workspace.githubRepoFullName,
+          dto.title,
+          dto.description,
+        );
+      } catch (err) {
+        this.logger.error('Falha ao criar Issue no GitHub (task será criada só localmente):', err);
+      }
     }
 
-    // 2. Cria a Issue no GitHub em nome do dono do workspace.
-    const issue = await this.githubApi.createIssue(
-      workspace.owner.githubAccessToken,
-      workspace.githubRepoFullName,
-      dto.title,
-      dto.description,
-    );
-
-    // 3. Persiste a Task referenciando a Issue.
     const task = await this.prisma.task.create({
       data: {
         title: dto.title,
@@ -65,13 +68,17 @@ export class TasksService {
         workspaceId: workspace.id,
         creatorId,
         assigneeId: dto.assigneeId,
-        githubIssueNumber: issue.number,
-        githubIssueId: String(issue.id),
+        githubIssueNumber: issue?.number,
+        githubIssueId: issue ? String(issue.id) : undefined,
         // status default = BACKLOG (o webhook de PR o moverá depois)
       },
     });
 
-    this.logger.log(`Task ${task.id} criada e vinculada à Issue #${issue.number}.`);
+    this.logger.log(
+      issue
+        ? `Task ${task.id} criada e vinculada à Issue #${issue.number}.`
+        : `Task ${task.id} criada sem vínculo com o GitHub.`,
+    );
     return task;
   }
 
