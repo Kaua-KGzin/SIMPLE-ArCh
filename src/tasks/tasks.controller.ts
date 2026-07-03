@@ -39,23 +39,29 @@ export class TasksController {
   update(
     @Param('workspaceId') workspaceId: string,
     @Param('taskId') taskId: string,
+    @CurrentUser() user: AuthUser,
     @Body() dto: UpdateTaskDto,
   ) {
-    return this.tasksService.update(workspaceId, taskId, dto);
+    return this.tasksService.update(workspaceId, taskId, dto, user.id);
   }
 
   @Delete(':taskId')
   @HttpCode(204)
-  remove(@Param('workspaceId') workspaceId: string, @Param('taskId') taskId: string) {
-    return this.tasksService.remove(workspaceId, taskId);
+  remove(
+    @Param('workspaceId') workspaceId: string,
+    @Param('taskId') taskId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.tasksService.remove(workspaceId, taskId, user.id);
   }
 
   @Patch(':taskId/status')
   updateStatus(
     @Param('workspaceId') workspaceId: string,
     @Param('taskId') taskId: string,
+    @CurrentUser() user: AuthUser,
     @Body() dto: UpdateTaskStatusDto,
   ) {
-    return this.tasksService.updateStatus(workspaceId, taskId, dto.status);
+    return this.tasksService.updateStatus(workspaceId, taskId, dto.status, user.id);
   }
 }

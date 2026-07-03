@@ -6,7 +6,8 @@ import { MembersPanel } from '../components/MembersPanel';
 import { ActivityPanel } from '../components/ActivityPanel';
 import { CodeModal } from '../components/CodeModal';
 import { TaskEditModal } from '../components/TaskEditModal';
-import type { Member, Task, TaskStatus, Workspace } from '../types';
+import { TaskComments } from '../components/TaskComments';
+import { displayName, type Member, type Task, type TaskStatus, type Workspace } from '../types';
 
 const COLUMNS: { status: TaskStatus; label: string; dot: string }[] = [
   { status: 'BACKLOG', label: 'Backlog', dot: 'bg-zinc-400' },
@@ -191,7 +192,7 @@ export function Board() {
             <button
               key={m.user.id}
               onClick={() => setAssigneeFilter((cur) => (cur === m.user.id ? null : m.user.id))}
-              title={`Filtrar por ${m.user.githubLogin}`}
+              title={`Filtrar por ${displayName(m.user)}`}
               className={`rounded-full transition ${
                 assigneeFilter === m.user.id ? 'ring-2 ring-indigo-500' : 'opacity-60 hover:opacity-100'
               }`}
@@ -207,7 +208,7 @@ export function Board() {
         </div>
         <span className="ml-auto flex items-center gap-1.5 text-xs text-zinc-600">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" />
-          sincronizando com o GitHub
+          {workspace?.githubRepoFullName ? 'sincronizando com o GitHub' : 'atualização automática'}
         </span>
       </div>
 
@@ -227,7 +228,11 @@ export function Board() {
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Título da task (vira o título da Issue no GitHub)"
+            placeholder={
+              workspace?.githubRepoFullName
+                ? 'Título da task (vira o título da Issue no GitHub)'
+                : 'Título da task'
+            }
             required
             maxLength={200}
             autoFocus
@@ -244,7 +249,7 @@ export function Board() {
             disabled={saving}
             className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium hover:bg-indigo-500 disabled:opacity-50"
           >
-            {saving ? 'Criando (Issue no GitHub)…' : 'Criar task'}
+            {saving ? 'Criando…' : 'Criar task'}
           </button>
         </form>
       )}
@@ -324,7 +329,7 @@ export function Board() {
                     </div>
 
                     {openTask === task.id && (
-                      <div className="mt-3 space-y-2 border-t border-zinc-800 pt-3" onClick={(e) => e.stopPropagation()}>
+                      <div className="mt-3 space-y-3 border-t border-zinc-800 pt-3" onClick={(e) => e.stopPropagation()}>
                         {task.description && (
                           <p className="whitespace-pre-wrap text-xs text-zinc-400">{task.description}</p>
                         )}
@@ -338,11 +343,14 @@ export function Board() {
                             <option value="">— ninguém —</option>
                             {members.map((m) => (
                               <option key={m.user.id} value={m.user.id}>
-                                {m.user.name ?? m.user.githubLogin}
+                                {displayName(m.user)}
                               </option>
                             ))}
                           </select>
                         </label>
+                        {workspaceId && (
+                          <TaskComments workspaceId={workspaceId} taskId={task.id} members={members} />
+                        )}
                       </div>
                     )}
                   </div>
@@ -355,7 +363,11 @@ export function Board() {
 
       {/* ===== Painéis e modais ===== */}
       {showActivity && workspaceId && (
-        <ActivityPanel workspaceId={workspaceId} onClose={() => setShowActivity(false)} />
+        <ActivityPanel
+          workspaceId={workspaceId}
+          hasRepo={!!workspace?.githubRepoFullName}
+          onClose={() => setShowActivity(false)}
+        />
       )}
       {codeTask && workspaceId && (
         <CodeModal workspaceId={workspaceId} taskId={codeTask} onClose={() => setCodeTask(null)} />

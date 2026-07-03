@@ -2,8 +2,8 @@ import * as crypto from 'crypto';
 import { GithubWebhookService } from './github-webhook.service';
 
 describe('GithubWebhookService.verifySignature', () => {
-  // Não usamos o banco aqui, então um stub vazio de PrismaService basta.
-  const service = new GithubWebhookService({} as never);
+  // Não usamos banco nem feed aqui, então stubs vazios bastam.
+  const service = new GithubWebhookService({} as never, {} as never);
   const secret = 'segredo-webhook-de-teste';
 
   beforeAll(() => {

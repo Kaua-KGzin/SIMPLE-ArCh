@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { TaskStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { ActivityService } from '../activity/activity.service';
 import { extractTaskNumbers } from './task-reference.util';
 
 /**
@@ -39,7 +40,10 @@ interface GithubPullRequestPayload {
 export class GithubWebhookService {
   private readonly logger = new Logger(GithubWebhookService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly activity: ActivityService,
+  ) {}
 
   /**
    * Verifica a assinatura HMAC SHA-256 enviada pelo GitHub.
@@ -123,6 +127,15 @@ export class GithubWebhookService {
     this.logger.log(
       `PR #${pr.number} (${action}) → ${result.count} task(s) movida(s) para ${newStatus}.`,
     );
+
+    // Feed nativo: registra o vínculo do PR (evento de sistema, sem actor).
+    if (result.count > 0) {
+      await this.activity.record(
+        workspace.id,
+        'PR_LINKED',
+        `PR #${pr.number} "${pr.title}" ${newStatus === TaskStatus.DONE ? 'foi mergeado' : 'entrou em revisão'} (${result.count} task(s))`,
+      );
+    }
   }
 
   /**

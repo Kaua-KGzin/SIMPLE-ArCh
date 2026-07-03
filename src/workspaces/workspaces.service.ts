@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { MemberRole, Workspace } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { ActivityService } from '../activity/activity.service';
 import { GithubApiService } from '../tasks/github-api.service';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
 import { LinkRepoDto } from './dto/link-repo.dto';
@@ -29,6 +30,7 @@ export class WorkspacesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly githubApi: GithubApiService,
+    private readonly activity: ActivityService,
   ) {}
 
   // --------------------------------------------------------------------------
@@ -99,6 +101,12 @@ export class WorkspacesService {
     });
   }
 
+  /** Feed de atividade NATIVO (tasks, comentários, equipe). Exige ser membro. */
+  async getFeed(userId: string, workspaceId: string) {
+    await this.assertMembership(userId, workspaceId);
+    return this.activity.listByWorkspace(workspaceId);
+  }
+
   /** Feed de atividade do repo (commits + PRs recentes). Exige ser membro. */
   async getActivity(userId: string, workspaceId: string) {
     await this.assertMembership(userId, workspaceId);
@@ -155,19 +163,26 @@ export class WorkspacesService {
       throw new BadRequestException('Não é possível convidar alguém como OWNER.');
     }
 
-    // O convidado precisa já ter logado na plataforma ao menos uma vez
-    // (é o OAuth que cria o registro dele). Sem isso não temos o githubId.
-    const invitee = await this.prisma.user.findFirst({
-      where: { githubLogin: { equals: dto.githubLogin, mode: 'insensitive' } },
-    });
+    const identifier = (dto.identifier ?? dto.githubLogin)?.trim();
+    if (!identifier) {
+      throw new BadRequestException('Informe o e-mail ou o login do GitHub do convidado.');
+    }
+
+    // O convidado precisa já ter conta na plataforma (login local ou GitHub).
+    // E-mail identifica usuários locais; githubLogin, os que vieram do OAuth.
+    const invitee = identifier.includes('@')
+      ? await this.prisma.user.findUnique({ where: { email: identifier.toLowerCase() } })
+      : await this.prisma.user.findFirst({
+          where: { githubLogin: { equals: identifier, mode: 'insensitive' } },
+        });
     if (!invitee) {
       throw new NotFoundException(
-        `Usuário "${dto.githubLogin}" não encontrado. Ele precisa fazer login na plataforma antes de ser convidado.`,
+        `Usuário "${identifier}" não encontrado. Ele precisa criar uma conta (e-mail/senha ou GitHub) antes de ser convidado.`,
       );
     }
 
     try {
-      return await this.prisma.workspaceMember.create({
+      const member = await this.prisma.workspaceMember.create({
         data: {
           userId: invitee.id,
           workspaceId,
@@ -177,10 +192,17 @@ export class WorkspacesService {
           user: { select: { id: true, name: true, githubLogin: true, avatarUrl: true } },
         },
       });
+      await this.activity.record(
+        workspaceId,
+        'MEMBER_JOINED',
+        `adicionou ${invitee.name ?? invitee.githubLogin ?? invitee.email} à equipe`,
+        userId,
+      );
+      return member;
     } catch (err: any) {
       // P2002 = violação de unique (userId + workspaceId): já é membro.
       if (err?.code === 'P2002') {
-        throw new ConflictException(`"${dto.githubLogin}" já é membro deste workspace.`);
+        throw new ConflictException(`"${identifier}" já é membro deste workspace.`);
       }
       throw err;
     }

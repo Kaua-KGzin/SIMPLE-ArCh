@@ -6,8 +6,13 @@ export type MemberRole = 'OWNER' | 'ADMIN' | 'MEMBER';
 export interface PublicUser {
   id: string;
   name: string | null;
-  githubLogin: string;
+  githubLogin: string | null; // null para contas criadas por e-mail/senha
   avatarUrl: string | null;
+}
+
+/** Nome exibível de qualquer usuário, com ou sem GitHub. */
+export function displayName(user: PublicUser | null | undefined): string {
+  return user?.name ?? user?.githubLogin ?? 'membro';
 }
 
 export interface Member {
@@ -36,5 +41,31 @@ export interface Task {
   workspaceId: string;
   assigneeId: string | null;
   assignee?: PublicUser | null;
+  createdAt: string;
+}
+
+export interface Comment {
+  id: string;
+  body: string;
+  taskId: string;
+  author: PublicUser;
+  createdAt: string;
+}
+
+export type ActivityType =
+  | 'TASK_CREATED'
+  | 'TASK_MOVED'
+  | 'TASK_ASSIGNED'
+  | 'TASK_DELETED'
+  | 'COMMENT_ADDED'
+  | 'MEMBER_JOINED'
+  | 'PR_LINKED';
+
+export interface ActivityEvent {
+  id: string;
+  type: ActivityType;
+  summary: string;
+  actor: PublicUser | null; // null = evento de sistema (ex.: webhook)
+  taskId: string | null;
   createdAt: string;
 }

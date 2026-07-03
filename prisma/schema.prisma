@@ -57,6 +57,8 @@ model User {
   // Tarefas que ele criou e tarefas atribuídas a ele.
   createdTasks     Task[]             @relation("TaskCreator")
   assignedTasks    Task[]             @relation("TaskAssignee")
+  comments         Comment[]
+  activityEvents   ActivityEvent[]
 
   @@map("users")
 }
@@ -86,6 +88,7 @@ model Workspace {
   // --- Relações ---
   members WorkspaceMember[]
   tasks   Task[]
+  events  ActivityEvent[]
 
   @@map("workspaces")
 }
@@ -143,9 +146,60 @@ model Task {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  comments Comment[]
+
   @@unique([workspaceId, githubIssueNumber])
   @@index([status])
   @@map("tasks")
+}
+
+// ----------------------------------------------------------------------------
+//  COMMENT
+//  Comentário numa task — o canal de comunicação nativo da plataforma.
+//  @menções ficam no próprio texto ("@nome"); o front destaca no render.
+// ----------------------------------------------------------------------------
+model Comment {
+  id   String @id @default(cuid())
+  body String
+
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([taskId, createdAt])
+  @@map("comments")
+}
+
+// ----------------------------------------------------------------------------
+//  ACTIVITY_EVENT
+//  Feed de atividade NATIVO do workspace (funciona sem GitHub).
+//  Gravado em best-effort pelas mutações (task criada/movida, comentário,
+//  membro entrou, PR vinculado via webhook) — nunca falha a operação principal.
+// ----------------------------------------------------------------------------
+model ActivityEvent {
+  id   String       @id @default(cuid())
+  type ActivityType
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  // Quem fez (null para eventos de sistema/webhook). SetNull: apagar o
+  // usuário não apaga a história do workspace.
+  actorId String?
+  actor   User?   @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  // Referência FRACA à task (sem FK): a task pode ser apagada e o evento fica.
+  taskId  String?
+  summary String // texto pronto para exibição, ex.: "moveu \"Login\" para IN_REVIEW"
+
+  createdAt DateTime @default(now())
+
+  @@index([workspaceId, createdAt])
+  @@map("activity_events")
 }
 
 // ----------------------------------------------------------------------------
@@ -164,4 +218,14 @@ enum TaskStatus {
   IN_PROGRESS
   IN_REVIEW // <- o webhook de Pull Request muda a task para cá automaticamente
   DONE
+}
+
+enum ActivityType {
+  TASK_CREATED
+  TASK_MOVED
+  TASK_ASSIGNED
+  TASK_DELETED
+  COMMENT_ADDED
+  MEMBER_JOINED
+  PR_LINKED
 }
