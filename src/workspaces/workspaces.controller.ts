@@ -53,6 +53,12 @@ export class WorkspacesController {
     return this.workspacesService.getActivity(user.id, id);
   }
 
+  /** Feed nativo da plataforma (funciona mesmo sem repositório vinculado). */
+  @Get(':id/feed')
+  getFeed(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.workspacesService.getFeed(user.id, id);
+  }
+
   @Patch(':id/repo')
   linkRepo(
     @CurrentUser() user: AuthUser,

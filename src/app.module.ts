@@ -17,6 +17,9 @@ import { TasksService } from './tasks/tasks.service';
 import { GithubApiService } from './tasks/github-api.service';
 import { WorkspacesController } from './workspaces/workspaces.controller';
 import { WorkspacesService } from './workspaces/workspaces.service';
+import { ActivityService } from './activity/activity.service';
+import { CommentsController } from './comments/comments.controller';
+import { CommentsService } from './comments/comments.service';
 
 /**
  * Módulo raiz. Aqui o container de Injeção de Dependência do Nest é montado:
@@ -44,6 +47,7 @@ import { WorkspacesService } from './workspaces/workspaces.service';
     GithubWebhookController,
     TasksController,
     WorkspacesController,
+    CommentsController,
   ],
   providers: [
     PrismaService,
@@ -54,6 +58,8 @@ import { WorkspacesService } from './workspaces/workspaces.service';
     TasksService,
     GithubApiService,
     WorkspacesService,
+    ActivityService,
+    CommentsService,
     { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
   exports: [PrismaService],

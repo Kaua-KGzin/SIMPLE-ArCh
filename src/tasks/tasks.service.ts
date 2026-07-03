@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Task } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { ActivityService } from '../activity/activity.service';
 import { GithubApiService } from './github-api.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
@@ -33,6 +34,7 @@ export class TasksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly githubApi: GithubApiService,
+    private readonly activity: ActivityService,
   ) {}
 
   async create(workspaceId: string, creatorId: string, dto: CreateTaskDto): Promise<Task> {
@@ -79,6 +81,13 @@ export class TasksService {
         ? `Task ${task.id} criada e vinculada à Issue #${issue.number}.`
         : `Task ${task.id} criada sem vínculo com o GitHub.`,
     );
+    await this.activity.record(
+      workspaceId,
+      'TASK_CREATED',
+      `criou a task "${task.title}"`,
+      creatorId,
+      task.id,
+    );
     return task;
   }
 
@@ -86,7 +95,12 @@ export class TasksService {
    * Move a task de coluna no board (mudança manual de status).
    * O webhook também muda status (PR aberto/mergeado); aqui é a via humana.
    */
-  async updateStatus(workspaceId: string, taskId: string, status: Task['status']): Promise<Task> {
+  async updateStatus(
+    workspaceId: string,
+    taskId: string,
+    status: Task['status'],
+    actorId?: string,
+  ): Promise<Task> {
     const task = await this.prisma.task.findFirst({
       where: { id: taskId, workspaceId },
     });
@@ -104,6 +118,15 @@ export class TasksService {
       await this.syncIssue(workspaceId, task.githubIssueNumber, {
         state: status === 'DONE' ? 'closed' : 'open',
       });
+    }
+    if (task.status !== status) {
+      await this.activity.record(
+        workspaceId,
+        'TASK_MOVED',
+        `moveu "${task.title}" para ${status}`,
+        actorId,
+        task.id,
+      );
     }
     return updated;
   }
@@ -137,13 +160,19 @@ export class TasksService {
   }
 
   /** Apaga a task. Issues não podem ser apagadas via API — fechamos a do GitHub. */
-  async remove(workspaceId: string, taskId: string): Promise<void> {
+  async remove(workspaceId: string, taskId: string, actorId?: string): Promise<void> {
     const task = await this.prisma.task.findFirst({ where: { id: taskId, workspaceId } });
     if (!task) throw new NotFoundException('Task não encontrada neste workspace.');
 
     await this.prisma.task.delete({ where: { id: taskId } });
     await this.syncIssue(workspaceId, task.githubIssueNumber, { state: 'closed' });
     this.logger.log(`Task ${taskId} removida (Issue #${task.githubIssueNumber ?? '-'} fechada).`);
+    await this.activity.record(
+      workspaceId,
+      'TASK_DELETED',
+      `apagou a task "${task.title}"`,
+      actorId,
+    );
   }
 
   /**
@@ -151,7 +180,12 @@ export class TasksService {
    * Se `assigneeId` vier preenchido, validamos que a pessoa é MEMBRO do
    * workspace — não faz sentido atribuir uma task a quem não está na equipe.
    */
-  async update(workspaceId: string, taskId: string, dto: UpdateTaskDto): Promise<Task> {
+  async update(
+    workspaceId: string,
+    taskId: string,
+    dto: UpdateTaskDto,
+    actorId?: string,
+  ): Promise<Task> {
     const task = await this.prisma.task.findFirst({ where: { id: taskId, workspaceId } });
     if (!task) throw new NotFoundException('Task não encontrada neste workspace.');
 
@@ -180,6 +214,22 @@ export class TasksService {
         title: dto.title,
         body: dto.description,
       });
+    }
+
+    // Atribuição mudou? Registra no feed com o nome de quem recebeu a task.
+    if (dto.assigneeId !== undefined && dto.assigneeId !== task.assigneeId) {
+      const assignee = (updated as Task & { assignee?: { name: string | null; githubLogin: string | null } | null })
+        .assignee;
+      const who = assignee ? (assignee.name ?? assignee.githubLogin ?? 'alguém') : null;
+      await this.activity.record(
+        workspaceId,
+        'TASK_ASSIGNED',
+        who
+          ? `atribuiu "${updated.title}" a ${who}`
+          : `removeu o responsável de "${updated.title}"`,
+        actorId,
+        task.id,
+      );
     }
     return updated;
   }

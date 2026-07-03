@@ -1,17 +1,25 @@
-import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 import { MemberRole } from '@prisma/client';
 
 /**
- * DTO para convidar um membro pelo login do GitHub.
+ * DTO para convidar um membro.
  *
- * POR QUÊ pelo login e não por e-mail? O login é o identificador natural aqui:
- * quem entra na plataforma se autentica via GitHub OAuth, então o usuário
- * convidado já existe (ou existirá) no nosso banco com esse login.
+ * `identifier` aceita e-mail OU login do GitHub — desde o login local,
+ * nem todo usuário tem githubLogin. `githubLogin` continua aceito por
+ * compatibilidade com clientes antigos (o service trata os dois).
  */
 export class InviteMemberDto {
   @IsString()
   @IsNotEmpty()
-  githubLogin!: string;
+  @MaxLength(255)
+  @IsOptional()
+  identifier?: string;
+
+  /** @deprecated use `identifier` — mantido por compatibilidade. */
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  githubLogin?: string;
 
   /** Papel do convidado. OWNER não é permitido — só existe um dono, o criador. */
   @IsEnum(MemberRole)

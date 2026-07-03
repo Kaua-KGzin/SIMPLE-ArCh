@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api } from '../lib/api';
 import { Avatar } from './Avatar';
-import type { Member, MemberRole } from '../types';
+import { displayName, type Member, type MemberRole } from '../types';
 
 const ROLE_LABEL: Record<MemberRole, string> = {
   OWNER: 'Dono',
@@ -10,8 +10,8 @@ const ROLE_LABEL: Record<MemberRole, string> = {
 };
 
 /**
- * Painel lateral de equipe: lista membros, convida por login do GitHub
- * (a pessoa precisa já ter feito login na plataforma) e remove membros.
+ * Painel lateral de equipe: lista membros, convida por e-mail OU login do
+ * GitHub (a pessoa precisa já ter conta na plataforma) e remove membros.
  */
 export function MembersPanel({
   workspaceId,
@@ -36,7 +36,7 @@ export function MembersPanel({
     try {
       const member = await api<Member>(`/workspaces/${workspaceId}/members`, {
         method: 'POST',
-        body: JSON.stringify({ githubLogin: login, role }),
+        body: JSON.stringify({ identifier: login, role }),
       });
       onChange([...members, member]);
       setLogin('');
@@ -48,7 +48,7 @@ export function MembersPanel({
   }
 
   async function remove(member: Member) {
-    if (!confirm(`Remover ${member.user.githubLogin} do workspace?`)) return;
+    if (!confirm(`Remover ${displayName(member.user)} do workspace?`)) return;
     setError(null);
     try {
       await api(`/workspaces/${workspaceId}/members/${member.user.id}`, { method: 'DELETE' });
@@ -71,7 +71,7 @@ export function MembersPanel({
         <input
           value={login}
           onChange={(e) => setLogin(e.target.value)}
-          placeholder="Login do GitHub (ex.: octocat)"
+          placeholder="E-mail ou login do GitHub"
           required
           className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500"
         />
@@ -92,7 +92,7 @@ export function MembersPanel({
           </button>
         </div>
         <p className="text-xs text-zinc-500">
-          A pessoa precisa já ter entrado na plataforma com o GitHub dela.
+          A pessoa precisa já ter conta na plataforma (e-mail/senha ou GitHub).
         </p>
       </form>
 
@@ -104,8 +104,10 @@ export function MembersPanel({
           >
             <Avatar user={m.user} size={8} />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{m.user.name ?? m.user.githubLogin}</p>
-              <p className="text-xs text-zinc-500">@{m.user.githubLogin} · {ROLE_LABEL[m.role]}</p>
+              <p className="truncate text-sm font-medium">{displayName(m.user)}</p>
+              <p className="text-xs text-zinc-500">
+                {m.user.githubLogin ? `@${m.user.githubLogin} · ` : ''}{ROLE_LABEL[m.role]}
+              </p>
             </div>
             {m.role !== 'OWNER' && (
               <button
