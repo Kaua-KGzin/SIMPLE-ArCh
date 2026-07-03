@@ -9,7 +9,9 @@
     }
   },
   "rewrites": [
-    { "source": "/auth/:path*", "destination": "/api" },
+    { "source": "/auth/github/:path*", "destination": "/api" },
+    { "source": "/auth/login", "destination": "/api" },
+    { "source": "/auth/register", "destination": "/api" },
     { "source": "/workspaces", "destination": "/api" },
     { "source": "/workspaces/:path*", "destination": "/api" },
     { "source": "/api/:path*", "destination": "/api" },
