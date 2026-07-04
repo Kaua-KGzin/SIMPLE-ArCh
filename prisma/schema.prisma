@@ -91,6 +91,7 @@ model Workspace {
   members WorkspaceMember[]
   tasks   Task[]
   events  ActivityEvent[]
+  labels  Label[]
 
   @@map("workspaces")
 }
@@ -122,10 +123,13 @@ model WorkspaceMember {
 //  para uma issue do GitHub via githubIssueNumber.
 // ----------------------------------------------------------------------------
 model Task {
-  id          String     @id @default(cuid())
+  id          String       @id @default(cuid())
   title       String
   description String?
-  status      TaskStatus @default(BACKLOG)
+  status      TaskStatus   @default(BACKLOG)
+  priority    TaskPriority @default(MEDIUM)
+  // Prazo opcional. A UI destaca tasks vencidas comparando com "agora".
+  dueDate     DateTime?
 
   // --- Mapeamento com o GitHub ---
   // O número da issue é único DENTRO de um repositório, não globalmente.
@@ -148,11 +152,69 @@ model Task {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  comments Comment[]
+  comments  Comment[]
+  labels    TaskLabel[]
+  checklist ChecklistItem[]
 
   @@unique([workspaceId, githubIssueNumber])
-  @@index([status])
+  // Composto: toda consulta de board filtra por workspace primeiro, depois status.
+  @@index([workspaceId, status])
   @@map("tasks")
+}
+
+// ----------------------------------------------------------------------------
+//  LABEL  (etiqueta por workspace)
+//  Cada workspace define suas próprias etiquetas coloridas; uma task pode ter
+//  várias (relação N:N via TaskLabel).
+// ----------------------------------------------------------------------------
+model Label {
+  id    String @id @default(cuid())
+  name  String
+  color String // hex, ex.: "#ef4444"
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  tasks     TaskLabel[]
+  createdAt DateTime    @default(now())
+
+  // Nome único dentro do workspace (não globalmente).
+  @@unique([workspaceId, name])
+  @@map("labels")
+}
+
+// ----------------------------------------------------------------------------
+//  TASK_LABEL  (join N:N entre Task e Label)
+// ----------------------------------------------------------------------------
+model TaskLabel {
+  taskId  String
+  task    Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  labelId String
+  label   Label  @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, labelId])
+  @@index([labelId])
+  @@map("task_labels")
+}
+
+// ----------------------------------------------------------------------------
+//  CHECKLIST_ITEM  (subtarefa/checklist de uma task)
+//  Itens simples marcáveis — decompõem uma task sem virar tasks separadas.
+// ----------------------------------------------------------------------------
+model ChecklistItem {
+  id   String  @id @default(cuid())
+  text String
+  done Boolean @default(false)
+  // Ordem manual dentro da task (arrastar/reordenar no futuro).
+  order Int    @default(0)
+
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([taskId, order])
+  @@map("checklist_items")
 }
 
 // ----------------------------------------------------------------------------
@@ -250,6 +312,13 @@ enum TaskStatus {
   IN_PROGRESS
   IN_REVIEW // <- o webhook de Pull Request muda a task para cá automaticamente
   DONE
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
 }
 
 enum ActivityType {

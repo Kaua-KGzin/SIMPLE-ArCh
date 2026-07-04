@@ -26,6 +26,10 @@ import { CommentsService } from './comments/comments.service';
 import { RealtimeGateway } from './realtime/realtime.gateway';
 import { NotificationsController } from './notifications/notifications.controller';
 import { NotificationsService } from './notifications/notifications.service';
+import { LabelsController } from './labels/labels.controller';
+import { LabelsService } from './labels/labels.service';
+import { ChecklistController } from './checklist/checklist.controller';
+import { ChecklistService } from './checklist/checklist.service';
 
 /**
  * Módulo raiz. Aqui o container de Injeção de Dependência do Nest é montado:
@@ -55,6 +59,8 @@ import { NotificationsService } from './notifications/notifications.service';
     WorkspacesController,
     CommentsController,
     NotificationsController,
+    LabelsController,
+    ChecklistController,
     HealthController,
   ],
   providers: [
@@ -71,6 +77,8 @@ import { NotificationsService } from './notifications/notifications.service';
     CommentsService,
     RealtimeGateway,
     NotificationsService,
+    LabelsService,
+    ChecklistService,
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     // Reporta exceções 5xx ao Sentry sem mudar o formato de resposta de erro.
     { provide: APP_FILTER, useClass: SentryExceptionFilter },

@@ -13,9 +13,11 @@ import { UpdateTaskDto } from './dto/update-task.dto';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { NotificationsService } from '../notifications/notifications.service';
 
-/** Campos públicos do assignee devolvidos junto com a task (para o board). */
+/** O que devolvemos junto com a task no board: assignee, labels e checklist. */
 const taskInclude = {
   assignee: { select: { id: true, name: true, githubLogin: true, avatarUrl: true } },
+  labels: { include: { label: true } },
+  checklist: { orderBy: { order: 'asc' } },
 } as const;
 
 /**
@@ -49,6 +51,8 @@ export class TasksService {
 
     if (!workspace) throw new NotFoundException('Workspace não encontrado.');
 
+    await this.assertLabelsInWorkspace(workspaceId, dto.labelIds ?? []);
+
     // GitHub é OPCIONAL: só tentamos criar a Issue se o workspace tiver repo
     // vinculado e o dono tiver token válido. Sem isso (ou se a chamada ao
     // GitHub falhar), a task nasce só no Postgres — mesmo espírito
@@ -74,10 +78,16 @@ export class TasksService {
         workspaceId: workspace.id,
         creatorId,
         assigneeId: dto.assigneeId,
+        priority: dto.priority,
+        dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
+        labels: dto.labelIds?.length
+          ? { create: dto.labelIds.map((labelId) => ({ labelId })) }
+          : undefined,
         githubIssueNumber: issue?.number,
         githubIssueId: issue ? String(issue.id) : undefined,
         // status default = BACKLOG (o webhook de PR o moverá depois)
       },
+      include: taskInclude,
     });
 
     this.logger.log(
@@ -216,12 +226,21 @@ export class TasksService {
       }
     }
 
+    if (dto.labelIds) await this.assertLabelsInWorkspace(workspaceId, dto.labelIds);
+
     const updated = await this.prisma.task.update({
       where: { id: taskId },
       data: {
         title: dto.title,
         description: dto.description,
         assigneeId: dto.assigneeId, // string atribui, null desatribui, undefined não mexe
+        priority: dto.priority,
+        // undefined = não mexe; null = remove o prazo; string = define.
+        dueDate: dto.dueDate === undefined ? undefined : dto.dueDate ? new Date(dto.dueDate) : null,
+        // labelIds enviado SUBSTITUI o conjunto: apaga os vínculos e recria.
+        labels: dto.labelIds
+          ? { deleteMany: {}, create: dto.labelIds.map((labelId) => ({ labelId })) }
+          : undefined,
       },
       include: taskInclude,
     });
@@ -290,12 +309,60 @@ export class TasksService {
     );
   }
 
-  /** Lista as tasks de um workspace (board), já com o assignee para os avatares. */
-  async listByWorkspace(workspaceId: string): Promise<Task[]> {
+  /**
+   * Lista as tasks do board (com assignee, labels e checklist).
+   * `q` (opcional) faz busca ampla: título, descrição E comentários —
+   * `comments: { some }` deixa o Postgres resolver o join sem trazer os
+   * comentários para a aplicação.
+   */
+  async listByWorkspace(workspaceId: string, q?: string): Promise<Task[]> {
+    const term = q?.trim();
     return this.prisma.task.findMany({
-      where: { workspaceId },
+      where: {
+        workspaceId,
+        ...(term
+          ? {
+              OR: [
+                { title: { contains: term, mode: 'insensitive' } },
+                { description: { contains: term, mode: 'insensitive' } },
+                { comments: { some: { body: { contains: term, mode: 'insensitive' } } } },
+              ],
+            }
+          : {}),
+      },
       include: taskInclude,
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  /** Busca uma task já no formato do board (assignee, labels, checklist). */
+  async getForBoard(workspaceId: string, taskId: string): Promise<Task> {
+    const task = await this.prisma.task.findFirst({
+      where: { id: taskId, workspaceId },
+      include: taskInclude,
+    });
+    if (!task) throw new NotFoundException('Task não encontrada neste workspace.');
+    return task;
+  }
+
+  /** Re-emite a task no board — usado por mudanças fora do TasksService (checklist). */
+  async emitTaskUpdated(workspaceId: string, taskId: string): Promise<void> {
+    const task = await this.getForBoard(workspaceId, taskId);
+    this.realtime.emitToWorkspace(workspaceId, 'task:updated', task);
+  }
+
+  /**
+   * Garante que todos os labelIds informados existem E pertencem ao workspace
+   * — impede vincular a uma task uma label de outro workspace.
+   */
+  private async assertLabelsInWorkspace(workspaceId: string, labelIds: string[]): Promise<void> {
+    const unique = [...new Set(labelIds)];
+    if (unique.length === 0) return;
+    const count = await this.prisma.label.count({
+      where: { id: { in: unique }, workspaceId },
+    });
+    if (count !== unique.length) {
+      throw new BadRequestException('Uma ou mais etiquetas não pertencem a este workspace.');
+    }
   }
 }

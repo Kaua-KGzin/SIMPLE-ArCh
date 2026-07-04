@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { WorkspaceMembershipGuard } from '../workspaces/workspace-membership.guard';
 import { CurrentUser, AuthUser } from '../auth/current-user.decorator';
@@ -29,8 +29,8 @@ export class TasksController {
   }
 
   @Get()
-  list(@Param('workspaceId') workspaceId: string) {
-    return this.tasksService.listByWorkspace(workspaceId);
+  list(@Param('workspaceId') workspaceId: string, @Query('q') q?: string) {
+    return this.tasksService.listByWorkspace(workspaceId, q);
   }
 
   @Get(':taskId/code')
