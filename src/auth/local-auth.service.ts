@@ -46,7 +46,7 @@ export class LocalAuthService {
     });
 
     this.logger.log(`Usuário registrado por e-mail: ${user.id}`);
-    return this.issueToken(user.id, user.githubLogin);
+    return this.issueToken(user.id, user.githubLogin, user.tokenVersion);
   }
 
   async login(dto: LoginDto): Promise<{ accessToken: string }> {
@@ -64,14 +64,29 @@ export class LocalAuthService {
       throw new UnauthorizedException('E-mail ou senha inválidos.');
     }
 
-    return this.issueToken(user.id, user.githubLogin);
+    return this.issueToken(user.id, user.githubLogin, user.tokenVersion);
+  }
+
+  /**
+   * "Sair de todos os dispositivos": incrementa tokenVersion, o que faz TODOS
+   * os JWTs já emitidos (inclusive o atual) deixarem de validar. Devolve um
+   * token novo, já com a versão atualizada, para a sessão que pediu continuar.
+   */
+  async revokeAllSessions(userId: string): Promise<{ accessToken: string }> {
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: { tokenVersion: { increment: 1 } },
+    });
+    this.logger.log(`Sessões revogadas para ${userId} (tokenVersion=${user.tokenVersion}).`);
+    return this.issueToken(user.id, user.githubLogin, user.tokenVersion);
   }
 
   private async issueToken(
     userId: string,
     githubLogin: string | null,
+    tokenVersion: number,
   ): Promise<{ accessToken: string }> {
-    const accessToken = await this.jwt.signAsync({ sub: userId, githubLogin });
+    const accessToken = await this.jwt.signAsync({ sub: userId, githubLogin, tv: tokenVersion });
     return { accessToken };
   }
 }

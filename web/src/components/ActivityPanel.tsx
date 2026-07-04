@@ -25,7 +25,8 @@ const EVENT_ICON: Record<ActivityType, string> = {
   PR_LINKED: '⑂',
 };
 
-const FEED_POLL_MS = 10_000;
+// Socket é primário (activity:new chega ao vivo); poll é só reconciliação.
+const FEED_POLL_MS = 30_000;
 
 function timeAgo(iso: string): string {
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);

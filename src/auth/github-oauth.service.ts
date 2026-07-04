@@ -154,6 +154,7 @@ export class GithubOAuthService {
     const accessToken = await this.jwt.signAsync({
       sub: user.id,
       githubLogin: user.githubLogin,
+      tv: user.tokenVersion,
     });
 
     return { accessToken };

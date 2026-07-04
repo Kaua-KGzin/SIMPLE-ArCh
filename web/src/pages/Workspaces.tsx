@@ -55,6 +55,22 @@ export function Workspaces() {
             {showForm ? 'Cancelar' : '+ Novo workspace'}
           </button>
           <button
+            onClick={async () => {
+              if (!confirm('Encerrar a sessão em TODOS os dispositivos? Você seguirá conectado só aqui.')) return;
+              try {
+                const { accessToken } = await api<{ accessToken: string }>('/auth/logout-all', { method: 'POST' });
+                auth.setToken(accessToken); // mantém ESTA sessão válida com a nova versão
+                alert('Sessões encerradas nos outros dispositivos.');
+              } catch (e) {
+                setError((e as Error).message);
+              }
+            }}
+            className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-400 hover:text-zinc-100"
+            title="Invalida os tokens em todos os dispositivos"
+          >
+            Sair de tudo
+          </button>
+          <button
             onClick={() => { auth.clear(); window.location.href = '/login'; }}
             className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-400 hover:text-zinc-100"
           >

@@ -36,7 +36,9 @@ const COLUMNS: { status: TaskStatus; label: string; dot: string }[] = [
   { status: 'DONE', label: 'Concluído', dot: 'bg-green-400' },
 ];
 
-const POLL_MS = 5000; // atualização "quase tempo real" do board
+// O WebSocket é o canal primário; o polling é só reconciliação de segurança
+// (caso o socket caia sem reconectar). Por isso o intervalo é folgado.
+const POLL_MS = 30_000;
 
 /**
  * Board Kanban do workspace.

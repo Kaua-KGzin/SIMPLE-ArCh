@@ -34,6 +34,11 @@ model User {
   // Hash bcrypt. Null para usuários que só entraram via GitHub.
   passwordHash String?
 
+  // Versão dos tokens: entra no payload do JWT. Incrementar (ex.: "sair de
+  // todos os dispositivos" ou troca de senha) invalida TODOS os JWTs antigos,
+  // já que a versão deixa de bater na validação — revogação sem tabela de sessão.
+  tokenVersion Int @default(0)
+
   // --- Identidade no GitHub (OPCIONAL: nem todo usuário conecta o GitHub) ---
   // githubId é o identificador IMUTÁVEL do GitHub (o username pode mudar; o id, não).
   // Por isso fazemos o "match" do usuário por githubId, nunca pelo login.

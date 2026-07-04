@@ -4,7 +4,8 @@ import { getSocket } from '../lib/socket';
 import { Avatar } from './Avatar';
 import { displayName, type Comment, type Member } from '../types';
 
-const POLL_MS = 10_000; // comentários novos de colegas aparecem sozinhos
+// Socket é primário (comment:created chega ao vivo); poll é só reconciliação.
+const POLL_MS = 30_000;
 
 function timeAgo(iso: string): string {
   const s = Math.max(1, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));

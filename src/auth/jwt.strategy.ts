@@ -20,9 +20,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: { sub: string; githubLogin?: string | null }) {
+  async validate(payload: { sub: string; githubLogin?: string | null; tv?: number }) {
     const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
     if (!user) throw new UnauthorizedException('Usuário não encontrado.');
+    // Revogação: se a versão do token não bate com a do usuário, o JWT foi
+    // invalidado ("sair de todos os dispositivos"). `?? 0` mantém tokens
+    // antigos (sem o campo) válidos enquanto ninguém revogou.
+    if ((payload.tv ?? 0) !== user.tokenVersion) {
+      throw new UnauthorizedException('Sessão expirada. Faça login novamente.');
+    }
     // Nunca devolvemos o token do GitHub aqui — só o necessário.
     return { id: user.id, githubLogin: user.githubLogin, email: user.email };
   }
