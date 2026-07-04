@@ -82,7 +82,18 @@ export function Board() {
   useEffect(() => {
     if (!workspaceId) return;
     const socket = getSocket();
-    socket.emit('workspace:join', workspaceId);
+
+    // Entrar na sala precisa acontecer a CADA (re)conexão: se o socket cair e
+    // reconectar (Wi-Fi, suspensão, deploy do backend), o servidor cria uma
+    // sessão nova que não está em sala nenhuma. Sem reemitir o join no
+    // 'connect', o tempo real pararia silenciosamente até um F5. Também
+    // recarregamos as tasks: eventos perdidos durante a queda voltam de uma vez.
+    const join = () => {
+      socket.emit('workspace:join', workspaceId);
+      void refresh();
+    };
+    if (socket.connected) join();
+    socket.on('connect', join);
 
     const onCreated = (task: Task) =>
       setTasks((ts) => (ts.some((t) => t.id === task.id) ? ts : [task, ...ts]));
@@ -96,11 +107,12 @@ export function Board() {
     socket.on('task:deleted', onDeleted);
     return () => {
       socket.emit('workspace:leave', workspaceId);
+      socket.off('connect', join);
       socket.off('task:created', onCreated);
       socket.off('task:updated', onUpdated);
       socket.off('task:deleted', onDeleted);
     };
-  }, [workspaceId]);
+  }, [workspaceId, refresh]);
 
   const visibleTasks = useMemo(() => {
     const q = search.trim().toLowerCase();

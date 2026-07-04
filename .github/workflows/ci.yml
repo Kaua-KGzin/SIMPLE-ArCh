@@ -1,0 +1,46 @@
+name: CI
+
+# Roda em todo push e em todo PR: nada de "esqueci de rodar os testes".
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend (build + test)
+    runs-on: ubuntu-latest
+    # Env dummy: os testes não tocam banco/rede de verdade, mas o boot do Nest
+    # e o CryptoUtil exigem que estas variáveis existam.
+    env:
+      DATABASE_URL: postgresql://user:pass@localhost:5432/db
+      JWT_SECRET: ci-not-a-real-secret
+      FRONTEND_URL: http://localhost:5173
+      ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx nest build
+      - run: npm test
+
+  frontend:
+    name: Frontend (build + lint)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build

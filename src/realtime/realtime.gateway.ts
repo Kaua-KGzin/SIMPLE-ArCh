@@ -78,4 +78,19 @@ export class RealtimeGateway implements OnGatewayConnection {
   emitToWorkspace(workspaceId: string, event: string, payload: unknown): void {
     this.server?.to(`workspace:${workspaceId}`).emit(event, payload);
   }
+
+  /**
+   * Tira os sockets de um usuário da sala de um workspace AGORA — usado quando
+   * ele é removido da equipe, para que pare de receber eventos em tempo real
+   * na hora, sem esperar ele recarregar a página. Como todo socket entra na
+   * sala pessoal `user:<id>` ao conectar, alcançamos todos os dispositivos
+   * abertos dessa pessoa de uma vez.
+   */
+  async removeUserFromWorkspace(userId: string, workspaceId: string): Promise<void> {
+    if (!this.server) return;
+    const sockets = await this.server.in(`user:${userId}`).fetchSockets();
+    for (const socket of sockets) {
+      socket.leave(`workspace:${workspaceId}`);
+    }
+  }
 }

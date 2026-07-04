@@ -9,12 +9,17 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { WorkspaceMembershipGuard } from '../workspaces/workspace-membership.guard';
 import { CurrentUser, AuthUser } from '../auth/current-user.decorator';
 import { CommentsService } from './comments.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
 
-/** Comentários de uma task. Todas as rotas exigem JWT + membership (no service). */
-@UseGuards(JwtAuthGuard)
+/**
+ * Comentários de uma task. Exigem JWT + membership no workspace. O guard é
+ * defesa em profundidade: o service também revalida membership, mas barrar já
+ * no guard mantém o padrão uniforme com as rotas de Task.
+ */
+@UseGuards(JwtAuthGuard, WorkspaceMembershipGuard)
 @Controller('workspaces/:workspaceId/tasks/:taskId/comments')
 export class CommentsController {
   constructor(private readonly comments: CommentsService) {}
