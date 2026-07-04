@@ -75,20 +75,26 @@ export function Board() {
   const [priorityFilter, setPriorityFilter] = useState<TaskPriority | null>(null);
   const [labelFilter, setLabelFilter] = useState<string | null>(null);
 
+  // Por padrão o board esconde as concluídas antigas (só as 50 mais recentes);
+  // este toggle pede todas.
+  const [showAllDone, setShowAllDone] = useState(false);
+
   // Pausa o polling enquanto uma ação otimista está em voo (evita "pulo" visual).
   const busyRef = useRef(false);
-  // Busca corre no BACKEND (cobre descrição e comentários, não só título).
-  // O ref carrega o termo atual para o polling não perdê-lo entre ciclos.
+  // Busca e "ver todas concluídas" correm no BACKEND. Os refs carregam o estado
+  // atual para o polling não perdê-lo entre ciclos.
   const searchRef = useRef('');
+  const allDoneRef = useRef(false);
 
   const refresh = useCallback(async () => {
     if (!workspaceId || busyRef.current) return;
+    const params = new URLSearchParams();
     const q = searchRef.current.trim();
-    const url = q
-      ? `/workspaces/${workspaceId}/tasks?q=${encodeURIComponent(q)}`
-      : `/workspaces/${workspaceId}/tasks`;
+    if (q) params.set('q', q);
+    if (allDoneRef.current) params.set('allDone', 'true');
+    const qs = params.toString();
     try {
-      const ts = await api<Task[]>(url);
+      const ts = await api<Task[]>(`/workspaces/${workspaceId}/tasks${qs ? `?${qs}` : ''}`);
       if (!busyRef.current) setTasks(ts);
     } catch {
       /* silencioso: rede pode oscilar entre polls */
@@ -114,6 +120,12 @@ export function Board() {
     const id = setTimeout(() => void refresh(), 300);
     return () => clearTimeout(id);
   }, [search, refresh]);
+
+  // Alternar "ver todas concluídas" refaz o fetch imediatamente.
+  useEffect(() => {
+    allDoneRef.current = showAllDone;
+    void refresh();
+  }, [showAllDone, refresh]);
 
   // Tempo real: entra na sala do workspace e aplica mudanças assim que chegam
   // (o polling acima continua como rede de segurança caso o socket caia).
@@ -550,6 +562,17 @@ export function Board() {
                   </div>
                 ))}
               </div>
+
+              {/* Coluna concluída: alternar entre "recentes" e "todas". Escondido
+                  durante busca (a busca já traz tudo que casa). */}
+              {col.status === 'DONE' && !search.trim() && (
+                <button
+                  onClick={() => setShowAllDone((v) => !v)}
+                  className="mt-2 rounded-lg border border-zinc-800 px-2 py-1.5 text-[11px] text-zinc-500 hover:border-zinc-600 hover:text-zinc-300"
+                >
+                  {showAllDone ? 'Mostrar só as recentes' : 'Mostrar todas as concluídas'}
+                </button>
+              )}
             </div>
           );
         })}

@@ -309,30 +309,57 @@ export class TasksService {
     );
   }
 
+  // Quantas tasks DONE o board traz por padrão. As não-concluídas vêm sempre
+  // todas (são o trabalho ativo); só a coluna "Concluído" é limitada, para o
+  // board não crescer sem teto ao longo dos meses.
+  private static readonly DONE_LIMIT = 50;
+
   /**
    * Lista as tasks do board (com assignee, labels e checklist).
-   * `q` (opcional) faz busca ampla: título, descrição E comentários —
-   * `comments: { some }` deixa o Postgres resolver o join sem trazer os
-   * comentários para a aplicação.
+   *
+   * `q` faz busca ampla (título, descrição E comentários — `comments: { some }`
+   * resolve o join no Postgres). Buscar implica ver tudo que casa, inclusive
+   * concluídas antigas.
+   *
+   * Sem busca e sem `allDone`, aplicamos a regra "esconder concluídas antigas":
+   * todas as ativas + as DONE mais recentes. Duas queries em paralelo em vez de
+   * uma — é o jeito limpo de "tudo de um lado, top-N do outro" no Prisma.
    */
-  async listByWorkspace(workspaceId: string, q?: string): Promise<Task[]> {
+  async listByWorkspace(workspaceId: string, q?: string, allDone = false): Promise<Task[]> {
     const term = q?.trim();
-    return this.prisma.task.findMany({
-      where: {
-        workspaceId,
-        ...(term
-          ? {
-              OR: [
-                { title: { contains: term, mode: 'insensitive' } },
-                { description: { contains: term, mode: 'insensitive' } },
-                { comments: { some: { body: { contains: term, mode: 'insensitive' } } } },
-              ],
-            }
-          : {}),
-      },
-      include: taskInclude,
-      orderBy: { createdAt: 'desc' },
-    });
+    const searchWhere = term
+      ? {
+          OR: [
+            { title: { contains: term, mode: 'insensitive' as const } },
+            { description: { contains: term, mode: 'insensitive' as const } },
+            { comments: { some: { body: { contains: term, mode: 'insensitive' as const } } } },
+          ],
+        }
+      : {};
+
+    // Busca ou "ver todas concluídas": uma query só, sem limitar DONE.
+    if (term || allDone) {
+      return this.prisma.task.findMany({
+        where: { workspaceId, ...searchWhere },
+        include: taskInclude,
+        orderBy: { createdAt: 'desc' },
+      });
+    }
+
+    const [active, recentDone] = await Promise.all([
+      this.prisma.task.findMany({
+        where: { workspaceId, status: { not: 'DONE' } },
+        include: taskInclude,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.task.findMany({
+        where: { workspaceId, status: 'DONE' },
+        include: taskInclude,
+        orderBy: { updatedAt: 'desc' }, // concluídas mais recentemente primeiro
+        take: TasksService.DONE_LIMIT,
+      }),
+    ]);
+    return [...active, ...recentDone];
   }
 
   /** Busca uma task já no formato do board (assignee, labels, checklist). */

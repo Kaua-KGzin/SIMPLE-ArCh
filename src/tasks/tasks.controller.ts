@@ -29,8 +29,12 @@ export class TasksController {
   }
 
   @Get()
-  list(@Param('workspaceId') workspaceId: string, @Query('q') q?: string) {
-    return this.tasksService.listByWorkspace(workspaceId, q);
+  list(
+    @Param('workspaceId') workspaceId: string,
+    @Query('q') q?: string,
+    @Query('allDone') allDone?: string,
+  ) {
+    return this.tasksService.listByWorkspace(workspaceId, q, allDone === 'true');
   }
 
   @Get(':taskId/code')
