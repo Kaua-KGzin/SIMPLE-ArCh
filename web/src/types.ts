@@ -1,6 +1,7 @@
 // Tipos espelhando as respostas da API (schema.prisma é a fonte da verdade).
 
 export type TaskStatus = 'BACKLOG' | 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'DONE';
+export type TaskPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
 export type MemberRole = 'OWNER' | 'ADMIN' | 'MEMBER';
 
 export interface PublicUser {
@@ -31,16 +32,41 @@ export interface Workspace {
   _count?: { members: number; tasks: number };
 }
 
+export interface Label {
+  id: string;
+  name: string;
+  color: string; // hex
+  workspaceId: string;
+}
+
+/** Vínculo task↔label como vem do backend (include: { label: true }). */
+export interface TaskLabel {
+  labelId: string;
+  label: Label;
+}
+
+export interface ChecklistItem {
+  id: string;
+  text: string;
+  done: boolean;
+  order: number;
+  taskId: string;
+}
+
 export interface Task {
   id: string;
   title: string;
   description: string | null;
   status: TaskStatus;
+  priority: TaskPriority;
+  dueDate: string | null;
   githubIssueNumber: number | null;
   githubPrNumber: number | null;
   workspaceId: string;
   assigneeId: string | null;
   assignee?: PublicUser | null;
+  labels?: TaskLabel[];
+  checklist?: ChecklistItem[];
   createdAt: string;
 }
 

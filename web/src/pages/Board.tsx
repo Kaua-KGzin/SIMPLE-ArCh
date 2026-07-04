@@ -4,11 +4,29 @@ import { api } from '../lib/api';
 import { getSocket } from '../lib/socket';
 import { Avatar } from '../components/Avatar';
 import { MembersPanel } from '../components/MembersPanel';
+import { LabelsPanel } from '../components/LabelsPanel';
 import { ActivityPanel } from '../components/ActivityPanel';
 import { CodeModal } from '../components/CodeModal';
 import { TaskEditModal } from '../components/TaskEditModal';
 import { TaskComments } from '../components/TaskComments';
-import { displayName, type Member, type Task, type TaskStatus, type Workspace } from '../types';
+import { TaskChecklist } from '../components/TaskChecklist';
+import { PRIORITY_META, PRIORITY_ORDER, dueState, formatDue, textOn } from '../lib/task-meta';
+import {
+  displayName,
+  type ChecklistItem,
+  type Label,
+  type Member,
+  type Task,
+  type TaskPriority,
+  type TaskStatus,
+  type Workspace,
+} from '../types';
+
+const DUE_CLASS: Record<'overdue' | 'soon' | 'later', string> = {
+  overdue: 'bg-red-950 text-red-300',
+  soon: 'bg-amber-950 text-amber-300',
+  later: 'bg-zinc-800 text-zinc-400',
+};
 
 const COLUMNS: { status: TaskStatus; label: string; dot: string }[] = [
   { status: 'BACKLOG', label: 'Backlog', dot: 'bg-zinc-400' },
@@ -36,12 +54,14 @@ export function Board() {
 
   const [showForm, setShowForm] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
+  const [showLabels, setShowLabels] = useState(false);
   const [showActivity, setShowActivity] = useState(false);
   const [codeTask, setCodeTask] = useState<string | null>(null);
   const [editTask, setEditTask] = useState<Task | null>(null);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [priority, setPriority] = useState<TaskPriority>('MEDIUM');
   const [saving, setSaving] = useState(false);
 
   const [dragOver, setDragOver] = useState<TaskStatus | null>(null);
@@ -50,14 +70,23 @@ export function Board() {
   // Filtros
   const [search, setSearch] = useState('');
   const [assigneeFilter, setAssigneeFilter] = useState<string | null>(null);
+  const [priorityFilter, setPriorityFilter] = useState<TaskPriority | null>(null);
+  const [labelFilter, setLabelFilter] = useState<string | null>(null);
 
   // Pausa o polling enquanto uma ação otimista está em voo (evita "pulo" visual).
   const busyRef = useRef(false);
+  // Busca corre no BACKEND (cobre descrição e comentários, não só título).
+  // O ref carrega o termo atual para o polling não perdê-lo entre ciclos.
+  const searchRef = useRef('');
 
   const refresh = useCallback(async () => {
     if (!workspaceId || busyRef.current) return;
+    const q = searchRef.current.trim();
+    const url = q
+      ? `/workspaces/${workspaceId}/tasks?q=${encodeURIComponent(q)}`
+      : `/workspaces/${workspaceId}/tasks`;
     try {
-      const ts = await api<Task[]>(`/workspaces/${workspaceId}/tasks`);
+      const ts = await api<Task[]>(url);
       if (!busyRef.current) setTasks(ts);
     } catch {
       /* silencioso: rede pode oscilar entre polls */
@@ -76,6 +105,13 @@ export function Board() {
     const id = setInterval(() => void refresh(), POLL_MS);
     return () => clearInterval(id);
   }, [workspaceId, refresh]);
+
+  // Busca com debounce: a cada mudança no termo, refaz o fetch (backend).
+  useEffect(() => {
+    searchRef.current = search;
+    const id = setTimeout(() => void refresh(), 300);
+    return () => clearTimeout(id);
+  }, [search, refresh]);
 
   // Tempo real: entra na sala do workspace e aplica mudanças assim que chegam
   // (o polling acima continua como rede de segurança caso o socket caia).
@@ -114,14 +150,28 @@ export function Board() {
     };
   }, [workspaceId, refresh]);
 
+  // Busca já foi aplicada no backend; aqui só os filtros de faceta (client-side).
   const visibleTasks = useMemo(() => {
-    const q = search.trim().toLowerCase();
     return tasks.filter((t) => {
       if (assigneeFilter && t.assigneeId !== assigneeFilter) return false;
-      if (q && !t.title.toLowerCase().includes(q) && !`#${t.githubIssueNumber}`.includes(q)) return false;
+      if (priorityFilter && t.priority !== priorityFilter) return false;
+      if (labelFilter && !(t.labels ?? []).some((l) => l.labelId === labelFilter)) return false;
       return true;
     });
-  }, [tasks, search, assigneeFilter]);
+  }, [tasks, assigneeFilter, priorityFilter, labelFilter]);
+
+  // Atualiza o checklist de uma task no estado local (resposta imediata; o
+  // backend re-emite via socket para os demais).
+  function setChecklist(taskId: string, items: ChecklistItem[]) {
+    setTasks((ts) => ts.map((t) => (t.id === taskId ? { ...t, checklist: items } : t)));
+  }
+
+  // Etiquetas para o filtro: as que estão EM USO nas tasks atuais (sem fetch extra).
+  const availableLabels = useMemo(() => {
+    const map = new Map<string, Label>();
+    for (const t of tasks) for (const tl of t.labels ?? []) map.set(tl.label.id, tl.label);
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [tasks]);
 
   async function createTask(e: React.FormEvent) {
     e.preventDefault();
@@ -130,12 +180,13 @@ export function Board() {
     try {
       const task = await api<Task>(`/workspaces/${workspaceId}/tasks`, {
         method: 'POST',
-        body: JSON.stringify({ title, description: description || undefined }),
+        body: JSON.stringify({ title, description: description || undefined, priority }),
       });
       setTasks((prev) => [task, ...prev]);
       setShowForm(false);
       setTitle('');
       setDescription('');
+      setPriority('MEDIUM');
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -205,6 +256,9 @@ export function Board() {
           <button onClick={() => setShowMembers(true)} className="rounded-lg border border-zinc-700 px-3.5 py-2 text-sm hover:border-zinc-500">
             Equipe
           </button>
+          <button onClick={() => setShowLabels(true)} className="rounded-lg border border-zinc-700 px-3.5 py-2 text-sm hover:border-zinc-500">
+            Etiquetas
+          </button>
           <button onClick={() => setShowActivity(true)} className="rounded-lg border border-zinc-700 px-3.5 py-2 text-sm hover:border-zinc-500">
             Atividade
           </button>
@@ -222,8 +276,8 @@ export function Board() {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar por título ou #issue…"
-          className="w-64 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm outline-none placeholder:text-zinc-600 focus:border-indigo-500"
+          placeholder="Buscar em título, descrição e comentários…"
+          className="w-full sm:w-72 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm outline-none placeholder:text-zinc-600 focus:border-indigo-500"
         />
         <div className="flex items-center gap-1.5">
           {members.map((m) => (
@@ -244,6 +298,38 @@ export function Board() {
             </button>
           )}
         </div>
+
+        {/* Filtro por prioridade */}
+        <div className="flex items-center gap-1">
+          {PRIORITY_ORDER.map((p) => (
+            <button
+              key={p}
+              onClick={() => setPriorityFilter((cur) => (cur === p ? null : p))}
+              title={`Prioridade ${PRIORITY_META[p].label}`}
+              className={`flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] transition ${
+                priorityFilter === p ? PRIORITY_META[p].chip : 'border-zinc-800 text-zinc-500 hover:border-zinc-600'
+              }`}
+            >
+              <span className={`h-1.5 w-1.5 rounded-full ${PRIORITY_META[p].dot}`} />
+              {PRIORITY_META[p].label}
+            </button>
+          ))}
+        </div>
+
+        {/* Filtro por etiqueta (só as em uso) */}
+        {availableLabels.length > 0 && (
+          <select
+            value={labelFilter ?? ''}
+            onChange={(e) => setLabelFilter(e.target.value || null)}
+            className="rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-300 outline-none focus:border-indigo-500"
+          >
+            <option value="">Todas as etiquetas</option>
+            {availableLabels.map((l) => (
+              <option key={l.id} value={l.id}>{l.name}</option>
+            ))}
+          </select>
+        )}
+
         <span className="ml-auto flex items-center gap-1.5 text-xs text-zinc-600">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" />
           {workspace?.githubRepoFullName ? 'sincronizando com o GitHub' : 'atualização automática'}
@@ -283,12 +369,26 @@ export function Board() {
             rows={3}
             className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500"
           />
-          <button
-            disabled={saving}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium hover:bg-indigo-500 disabled:opacity-50"
-          >
-            {saving ? 'Criando…' : 'Criar task'}
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-xs text-zinc-500">
+              Prioridade
+              <select
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as TaskPriority)}
+                className="rounded-lg border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm text-zinc-200"
+              >
+                {PRIORITY_ORDER.map((p) => (
+                  <option key={p} value={p}>{PRIORITY_META[p].label}</option>
+                ))}
+              </select>
+            </label>
+            <button
+              disabled={saving}
+              className="ml-auto rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium hover:bg-indigo-500 disabled:opacity-50"
+            >
+              {saving ? 'Criando…' : 'Criar task'}
+            </button>
+          </div>
         </form>
       )}
 
@@ -336,10 +436,40 @@ export function Board() {
                       <button
                         onClick={(e) => { e.stopPropagation(); setEditTask(task); }}
                         title="Editar task"
-                        className="hidden shrink-0 text-zinc-600 hover:text-zinc-200 group-hover:block"
+                        className="shrink-0 text-zinc-600 hover:text-zinc-200 sm:hidden sm:group-hover:block"
                       >
                         ✎
                       </button>
+                    </div>
+
+                    {/* Badges: prioridade, etiquetas, prazo, progresso do checklist */}
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px]">
+                      <span
+                        title={`Prioridade ${PRIORITY_META[task.priority].label}`}
+                        className={`flex items-center gap-1 rounded-full border px-1.5 py-0.5 ${PRIORITY_META[task.priority].chip}`}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${PRIORITY_META[task.priority].dot}`} />
+                        {PRIORITY_META[task.priority].label}
+                      </span>
+                      {(task.labels ?? []).map((tl) => (
+                        <span
+                          key={tl.labelId}
+                          style={{ backgroundColor: tl.label.color, color: textOn(tl.label.color) }}
+                          className="rounded-full px-1.5 py-0.5 font-medium"
+                        >
+                          {tl.label.name}
+                        </span>
+                      ))}
+                      {task.dueDate && dueState(task.dueDate) !== 'none' && (
+                        <span className={`rounded-full px-1.5 py-0.5 ${DUE_CLASS[dueState(task.dueDate) as 'overdue' | 'soon' | 'later']}`}>
+                          🗓 {formatDue(task.dueDate)}
+                        </span>
+                      )}
+                      {task.checklist && task.checklist.length > 0 && (
+                        <span className="rounded-full bg-zinc-800 px-1.5 py-0.5 text-zinc-400">
+                          ✓ {task.checklist.filter((i) => i.done).length}/{task.checklist.length}
+                        </span>
+                      )}
                     </div>
 
                     <div className="mt-2 flex items-center gap-3 text-xs">
@@ -387,6 +517,14 @@ export function Board() {
                           </select>
                         </label>
                         {workspaceId && (
+                          <TaskChecklist
+                            workspaceId={workspaceId}
+                            taskId={task.id}
+                            items={task.checklist ?? []}
+                            onChange={(items) => setChecklist(task.id, items)}
+                          />
+                        )}
+                        {workspaceId && (
                           <TaskComments workspaceId={workspaceId} taskId={task.id} members={members} />
                         )}
                       </div>
@@ -425,6 +563,13 @@ export function Board() {
           members={members}
           onChange={setMembers}
           onClose={() => setShowMembers(false)}
+        />
+      )}
+      {showLabels && workspaceId && (
+        <LabelsPanel
+          workspaceId={workspaceId}
+          onChanged={() => void refresh()}
+          onClose={() => setShowLabels(false)}
         />
       )}
     </div>
