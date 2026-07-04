@@ -15,8 +15,12 @@ const { NestFactory } = require('@nestjs/core');
 const { ValidationPipe } = require('@nestjs/common');
 const { ExpressAdapter } = require('@nestjs/platform-express');
 const { AppModule } = require('../dist/app.module');
+const { resolveAllowedOrigins } = require('../dist/common/cors.util');
 
 const server = express();
+// Mesmo motivo do src/main.ts: sem isto, o rate limit por IP (@Throttle no
+// login) vê o IP do proxy da Vercel em toda requisição, não o do cliente.
+server.set('trust proxy', 1);
 let ready = null;
 
 async function bootstrap() {
@@ -33,7 +37,8 @@ async function bootstrap() {
     }),
   );
   app.use(cookieParser());
-  app.enableCors({ origin: process.env.FRONTEND_URL, credentials: true });
+  // Falha no boot se FRONTEND_URL não estiver definida (ver src/common/cors.util.ts).
+  app.enableCors({ origin: resolveAllowedOrigins(), credentials: true });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
 
   await app.init();

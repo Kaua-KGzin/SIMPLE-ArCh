@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { WorkspaceMembershipGuard } from '../workspaces/workspace-membership.guard';
 import { CurrentUser, AuthUser } from '../auth/current-user.decorator';
 import { TasksService } from './tasks.service';
 import { CreateTaskDto } from './dto/create-task.dto';
@@ -7,11 +8,13 @@ import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 
 /**
- * Rotas de Task, aninhadas sob um workspace. Todas exigem autenticação (JWT).
+ * Rotas de Task, aninhadas sob um workspace. Exigem autenticação (JWT) E
+ * membership no workspace da URL — sem o segundo guard, qualquer conta
+ * autenticada poderia mexer em tasks de um workspace ao qual não pertence.
  *   POST /workspaces/:workspaceId/tasks  -> cria Task (e a Issue no GitHub)
  *   GET  /workspaces/:workspaceId/tasks  -> lista o board
  */
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, WorkspaceMembershipGuard)
 @Controller('workspaces/:workspaceId/tasks')
 export class TasksController {
   constructor(private readonly tasksService: TasksService) {}

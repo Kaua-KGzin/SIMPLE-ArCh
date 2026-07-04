@@ -17,6 +17,7 @@ import { TasksService } from './tasks/tasks.service';
 import { GithubApiService } from './tasks/github-api.service';
 import { WorkspacesController } from './workspaces/workspaces.controller';
 import { WorkspacesService } from './workspaces/workspaces.service';
+import { WorkspaceMembershipGuard } from './workspaces/workspace-membership.guard';
 import { ActivityService } from './activity/activity.service';
 import { CommentsController } from './comments/comments.controller';
 import { CommentsService } from './comments/comments.service';
@@ -62,6 +63,7 @@ import { NotificationsService } from './notifications/notifications.service';
     TasksService,
     GithubApiService,
     WorkspacesService,
+    WorkspaceMembershipGuard,
     ActivityService,
     CommentsService,
     RealtimeGateway,
