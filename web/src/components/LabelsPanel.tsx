@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
+import { confirmDialog } from '../lib/confirm';
 import { textOn } from '../lib/task-meta';
 import type { Label } from '../types';
 
@@ -51,7 +52,13 @@ export function LabelsPanel({
   }
 
   async function remove(label: Label) {
-    if (!confirm(`Apagar a etiqueta "${label.name}"? Ela sai de todas as tasks.`)) return;
+    const ok = await confirmDialog({
+      title: `Apagar a etiqueta "${label.name}"?`,
+      message: 'Ela será removida de todas as tasks que a usam.',
+      confirmLabel: 'Apagar',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api(`${base}/${label.id}`, { method: 'DELETE' });
       setLabels((ls) => ls.filter((l) => l.id !== label.id));

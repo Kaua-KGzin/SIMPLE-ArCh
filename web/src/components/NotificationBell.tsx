@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { getSocket } from '../lib/socket';
+import { toast } from '../lib/toast';
 import { Avatar } from './Avatar';
 import { displayName, type Notification, type NotificationType } from '../types';
 
@@ -27,6 +28,7 @@ function timeAgo(iso: string): string {
 export function NotificationBell() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
+  const [bump, setBump] = useState(0); // muda a cada nova → reanima o badge
   const navigate = useNavigate();
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -37,7 +39,13 @@ export function NotificationBell() {
 
     const socket = getSocket();
     socket.connect();
-    const onNew = (n: Notification) => setNotifications((prev) => [n, ...prev]);
+    const onNew = (n: Notification) => {
+      setNotifications((prev) => [n, ...prev]);
+      setBump((b) => b + 1);
+      // Feedback mesmo com o dropdown fechado.
+      const who = n.actor ? `${displayName(n.actor)} ` : '';
+      toast.info(`${who}${n.message}`);
+    };
     socket.on('notification:new', onNew);
     return () => {
       socket.off('notification:new', onNew);
@@ -71,11 +79,14 @@ export function NotificationBell() {
       <button
         onClick={() => setOpen((v) => !v)}
         title="Notificações"
-        className="relative flex h-10 w-10 items-center justify-center rounded-full border border-zinc-700 bg-zinc-900 text-lg hover:border-zinc-500"
+        className="relative flex h-10 w-10 items-center justify-center rounded-full border border-zinc-700 bg-zinc-900/90 text-lg backdrop-blur transition hover:border-zinc-500"
       >
         🔔
         {unread > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">
+          <span
+            key={bump}
+            className="badge-pop absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white"
+          >
             {unread > 9 ? '9+' : unread}
           </span>
         )}

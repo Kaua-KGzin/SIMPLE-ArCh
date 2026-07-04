@@ -2,6 +2,10 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import { auth } from '../lib/auth';
+import { toast } from '../lib/toast';
+import { confirmDialog } from '../lib/confirm';
+import { Logo } from '../components/Logo';
+import { Skeleton } from '../components/Skeleton';
 import type { Workspace } from '../types';
 
 /** Lista de workspaces do usuário + formulário de criação. */
@@ -46,23 +50,32 @@ export function Workspaces() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-10">
       <header className="mb-8 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">Meus Workspaces</h1>
+        <Logo size={30} />
         <div className="flex gap-3">
           <button
             onClick={() => setShowForm((v) => !v)}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium hover:bg-indigo-500"
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+              showForm
+                ? 'border border-zinc-700 text-zinc-300 hover:border-zinc-500'
+                : 'brand-gradient brand-gradient-hover brand-glow text-white'
+            }`}
           >
             {showForm ? 'Cancelar' : '+ Novo workspace'}
           </button>
           <button
             onClick={async () => {
-              if (!confirm('Encerrar a sessão em TODOS os dispositivos? Você seguirá conectado só aqui.')) return;
+              const ok = await confirmDialog({
+                title: 'Sair de todos os dispositivos?',
+                message: 'As sessões nos outros dispositivos serão encerradas. Você seguirá conectado só aqui.',
+                confirmLabel: 'Sair de tudo',
+              });
+              if (!ok) return;
               try {
                 const { accessToken } = await api<{ accessToken: string }>('/auth/logout-all', { method: 'POST' });
                 auth.setToken(accessToken); // mantém ESTA sessão válida com a nova versão
-                alert('Sessões encerradas nos outros dispositivos.');
+                toast.success('Sessões encerradas nos outros dispositivos.');
               } catch (e) {
-                setError((e as Error).message);
+                toast.error((e as Error).message);
               }
             }}
             className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-400 hover:text-zinc-100"
@@ -107,16 +120,24 @@ export function Workspaces() {
       )}
 
       {loading ? (
-        <p className="text-zinc-500">Carregando…</p>
+        <div className="space-y-3">
+          <Skeleton className="h-[76px] w-full rounded-xl" />
+          <Skeleton className="h-[76px] w-full rounded-xl" />
+          <Skeleton className="h-[76px] w-full rounded-xl" />
+        </div>
       ) : workspaces.length === 0 ? (
-        <p className="text-zinc-500">Nenhum workspace ainda. Crie o primeiro!</p>
+        <div className="rounded-xl border border-dashed border-zinc-800 py-16 text-center">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl brand-gradient text-2xl">✦</div>
+          <p className="text-zinc-400">Nenhum workspace ainda.</p>
+          <p className="mt-1 text-sm text-zinc-600">Crie o primeiro para começar a organizar o time.</p>
+        </div>
       ) : (
         <ul className="space-y-3">
-          {workspaces.map((ws) => (
-            <li key={ws.id}>
+          {workspaces.map((ws, i) => (
+            <li key={ws.id} className="card-in" style={{ '--i': i } as React.CSSProperties}>
               <Link
                 to={`/w/${ws.id}`}
-                className="block rounded-xl border border-zinc-800 bg-zinc-900 p-5 transition hover:border-zinc-600"
+                className="block rounded-xl border border-zinc-800 bg-zinc-900 p-5 transition hover:-translate-y-0.5 hover:border-zinc-600 hover:shadow-lg"
               >
                 <div className="flex items-center justify-between">
                   <span className="font-medium">{ws.name}</span>

@@ -2,7 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { getSocket } from '../lib/socket';
+import { toast } from '../lib/toast';
+import { withViewTransition } from '../lib/view-transition';
 import { Avatar } from '../components/Avatar';
+import { TaskCardSkeleton } from '../components/Skeleton';
 import { MembersPanel } from '../components/MembersPanel';
 import { LabelsPanel } from '../components/LabelsPanel';
 import { ActivityPanel } from '../components/ActivityPanel';
@@ -52,6 +55,7 @@ export function Board() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [showForm, setShowForm] = useState(false);
@@ -67,6 +71,7 @@ export function Board() {
   const [saving, setSaving] = useState(false);
 
   const [dragOver, setDragOver] = useState<TaskStatus | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
   const [openTask, setOpenTask] = useState<string | null>(null);
 
   // Filtros
@@ -98,6 +103,8 @@ export function Board() {
       if (!busyRef.current) setTasks(ts);
     } catch {
       /* silencioso: rede pode oscilar entre polls */
+    } finally {
+      setLoaded(true);
     }
   }, [workspaceId]);
 
@@ -210,8 +217,12 @@ export function Board() {
 
   async function moveTask(taskId: string, status: TaskStatus) {
     const prev = tasks;
+    if (prev.find((t) => t.id === taskId)?.status === status) return; // já está lá
     busyRef.current = true;
-    setTasks((ts) => ts.map((t) => (t.id === taskId ? { ...t, status } : t)));
+    // View Transition: o card desliza da coluna antiga para a nova.
+    withViewTransition(() =>
+      setTasks((ts) => ts.map((t) => (t.id === taskId ? { ...t, status } : t))),
+    );
     try {
       await api(`/workspaces/${workspaceId}/tasks/${taskId}/status`, {
         method: 'PATCH',
@@ -219,7 +230,7 @@ export function Board() {
       });
     } catch (e) {
       setTasks(prev);
-      setError((e as Error).message);
+      toast.error((e as Error).message);
     } finally {
       busyRef.current = false;
     }
@@ -242,7 +253,9 @@ export function Board() {
       {/* ===== Header ===== */}
       <header className="mb-5 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <Link to="/" className="text-xs text-zinc-500 hover:text-zinc-300">← Workspaces</Link>
+          <Link to="/" className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300">
+            <img src="/icon-192.png" width={16} height={16} className="rounded" alt="" /> Workspaces
+          </Link>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold tracking-tight">{workspace?.name ?? '…'}</h1>
             {workspace?.githubRepoFullName && (
@@ -278,7 +291,11 @@ export function Board() {
           </button>
           <button
             onClick={() => setShowForm((v) => !v)}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium shadow-lg shadow-indigo-950 hover:bg-indigo-500"
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+              showForm
+                ? 'border border-zinc-700 text-zinc-300 hover:border-zinc-500'
+                : 'brand-gradient brand-gradient-hover brand-glow text-white'
+            }`}
           >
             {showForm ? 'Cancelar' : '+ Nova task'}
           </button>
@@ -436,16 +453,26 @@ export function Board() {
               </h2>
 
               <div className="flex-1 space-y-2">
-                {colTasks.length === 0 && (
-                  <p className="px-1 pt-2 text-center text-xs text-zinc-700">— vazio —</p>
+                {!loaded && (
+                  <>
+                    <TaskCardSkeleton />
+                    <TaskCardSkeleton />
+                  </>
                 )}
-                {colTasks.map((task) => (
+                {loaded && colTasks.length === 0 && (
+                  <p className="px-1 pt-6 text-center text-xs text-zinc-700">Nada por aqui</p>
+                )}
+                {colTasks.map((task, i) => (
                   <div
                     key={task.id}
                     draggable
-                    onDragStart={(e) => e.dataTransfer.setData('taskId', task.id)}
+                    onDragStart={(e) => { e.dataTransfer.setData('taskId', task.id); setDraggingId(task.id); }}
+                    onDragEnd={() => setDraggingId(null)}
                     onClick={() => setOpenTask((cur) => (cur === task.id ? null : task.id))}
-                    className="group cursor-grab rounded-lg border border-zinc-800 bg-zinc-950 p-3 text-sm shadow-md transition hover:-translate-y-0.5 hover:border-zinc-600 active:cursor-grabbing"
+                    style={{ viewTransitionName: `task-${task.id}`, '--i': i } as React.CSSProperties}
+                    className={`group card-in cursor-grab rounded-lg border border-zinc-800 bg-zinc-950 p-3 text-sm shadow-md transition hover:-translate-y-0.5 hover:border-zinc-600 active:cursor-grabbing ${
+                      draggingId === task.id ? 'scale-[0.98] opacity-40' : ''
+                    }`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <p className="font-medium leading-snug">{task.title}</p>

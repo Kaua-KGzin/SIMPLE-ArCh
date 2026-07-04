@@ -5,6 +5,8 @@ import { AuthSuccess } from './pages/AuthSuccess';
 import { Workspaces } from './pages/Workspaces';
 import { Board } from './pages/Board';
 import { NotificationBell } from './components/NotificationBell';
+import { ToastHost } from './components/ToastHost';
+import { ConfirmHost } from './components/ConfirmHost';
 
 /** Rotas privadas: sem token, volta pro login. */
 function RequireAuth() {
@@ -30,6 +32,9 @@ export function App() {
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      {/* Hosts globais de feedback (toasts + confirmação), acima de tudo. */}
+      <ToastHost />
+      <ConfirmHost />
     </BrowserRouter>
   );
 }
