@@ -86,7 +86,7 @@ export function ActivityPanel({
   }, [tab, github, hasRepo, workspaceId]);
 
   return (
-    <aside className="fixed inset-y-0 right-0 z-10 w-96 overflow-y-auto border-l border-zinc-800 bg-zinc-900 p-5 shadow-2xl">
+    <aside className="fixed inset-y-0 right-0 z-10 w-full max-w-sm overflow-y-auto border-l border-zinc-800 bg-zinc-900 p-5 shadow-2xl">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="font-semibold">Atividade</h2>
         <button onClick={onClose} className="text-zinc-500 hover:text-zinc-200">✕</button>

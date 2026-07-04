@@ -224,7 +224,7 @@ export function Board() {
   }
 
   return (
-    <div className="min-h-screen px-6 py-6">
+    <div className="min-h-screen px-4 py-4 sm:px-6 sm:py-6">
       {/* ===== Header ===== */}
       <header className="mb-5 flex flex-wrap items-center justify-between gap-4">
         <div>
@@ -244,8 +244,8 @@ export function Board() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button onClick={() => setShowMembers(true)} className="mr-1 flex -space-x-2" title="Equipe">
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={() => setShowMembers(true)} className="mr-1 hidden -space-x-2 sm:flex" title="Equipe">
             {members.slice(0, 4).map((m) => <Avatar key={m.id} user={m.user} size={8} />)}
             {members.length > 4 && (
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-800 text-xs">
@@ -253,13 +253,13 @@ export function Board() {
               </span>
             )}
           </button>
-          <button onClick={() => setShowMembers(true)} className="rounded-lg border border-zinc-700 px-3.5 py-2 text-sm hover:border-zinc-500">
+          <button onClick={() => setShowMembers(true)} className="rounded-lg border border-zinc-700 px-3 py-2 text-sm hover:border-zinc-500">
             Equipe
           </button>
-          <button onClick={() => setShowLabels(true)} className="rounded-lg border border-zinc-700 px-3.5 py-2 text-sm hover:border-zinc-500">
+          <button onClick={() => setShowLabels(true)} className="rounded-lg border border-zinc-700 px-3 py-2 text-sm hover:border-zinc-500">
             Etiquetas
           </button>
-          <button onClick={() => setShowActivity(true)} className="rounded-lg border border-zinc-700 px-3.5 py-2 text-sm hover:border-zinc-500">
+          <button onClick={() => setShowActivity(true)} className="rounded-lg border border-zinc-700 px-3 py-2 text-sm hover:border-zinc-500">
             Atividade
           </button>
           <button
@@ -392,8 +392,10 @@ export function Board() {
         </form>
       )}
 
-      {/* ===== Colunas ===== */}
-      <div className="grid grid-cols-5 gap-3">
+      {/* ===== Colunas =====
+          Mobile: rolagem horizontal com colunas de largura fixa (padrão kanban
+          em telas pequenas). lg+: grid de 5 colunas que preenche a largura. */}
+      <div className="flex gap-3 overflow-x-auto pb-3 lg:grid lg:grid-cols-5 lg:overflow-visible">
         {COLUMNS.map((col) => {
           const colTasks = visibleTasks.filter((t) => t.status === col.status);
           return (
@@ -407,7 +409,7 @@ export function Board() {
                 const taskId = e.dataTransfer.getData('taskId');
                 if (taskId) void moveTask(taskId, col.status);
               }}
-              className={`flex min-h-[60vh] flex-col rounded-xl bg-zinc-900/50 p-2.5 ring-1 ring-inset transition ${
+              className={`flex min-h-[60vh] w-72 shrink-0 flex-col rounded-xl bg-zinc-900/50 p-2.5 ring-1 ring-inset transition lg:w-auto ${
                 dragOver === col.status ? 'bg-zinc-800/80 ring-indigo-600' : 'ring-zinc-800/60'
               }`}
             >
@@ -501,21 +503,35 @@ export function Board() {
                         {task.description && (
                           <p className="whitespace-pre-wrap text-xs text-zinc-400">{task.description}</p>
                         )}
-                        <label className="block text-xs text-zinc-500">
-                          Responsável
-                          <select
-                            value={task.assigneeId ?? ''}
-                            onChange={(e) => void assignTask(task.id, e.target.value || null)}
-                            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-200"
-                          >
-                            <option value="">— ninguém —</option>
-                            {members.map((m) => (
-                              <option key={m.user.id} value={m.user.id}>
-                                {displayName(m.user)}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <label className="block text-xs text-zinc-500">
+                            Coluna
+                            <select
+                              value={task.status}
+                              onChange={(e) => void moveTask(task.id, e.target.value as TaskStatus)}
+                              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-200"
+                            >
+                              {COLUMNS.map((c) => (
+                                <option key={c.status} value={c.status}>{c.label}</option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="block text-xs text-zinc-500">
+                            Responsável
+                            <select
+                              value={task.assigneeId ?? ''}
+                              onChange={(e) => void assignTask(task.id, e.target.value || null)}
+                              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-200"
+                            >
+                              <option value="">— ninguém —</option>
+                              {members.map((m) => (
+                                <option key={m.user.id} value={m.user.id}>
+                                  {displayName(m.user)}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        </div>
                         {workspaceId && (
                           <TaskChecklist
                             workspaceId={workspaceId}
