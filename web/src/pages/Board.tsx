@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
+import { getSocket } from '../lib/socket';
 import { Avatar } from '../components/Avatar';
 import { MembersPanel } from '../components/MembersPanel';
 import { ActivityPanel } from '../components/ActivityPanel';
@@ -75,6 +76,31 @@ export function Board() {
     const id = setInterval(() => void refresh(), POLL_MS);
     return () => clearInterval(id);
   }, [workspaceId, refresh]);
+
+  // Tempo real: entra na sala do workspace e aplica mudanças assim que chegam
+  // (o polling acima continua como rede de segurança caso o socket caia).
+  useEffect(() => {
+    if (!workspaceId) return;
+    const socket = getSocket();
+    socket.emit('workspace:join', workspaceId);
+
+    const onCreated = (task: Task) =>
+      setTasks((ts) => (ts.some((t) => t.id === task.id) ? ts : [task, ...ts]));
+    const onUpdated = (task: Task) =>
+      setTasks((ts) => (busyRef.current ? ts : ts.map((t) => (t.id === task.id ? task : t))));
+    const onDeleted = ({ id: deletedId }: { id: string }) =>
+      setTasks((ts) => ts.filter((t) => t.id !== deletedId));
+
+    socket.on('task:created', onCreated);
+    socket.on('task:updated', onUpdated);
+    socket.on('task:deleted', onDeleted);
+    return () => {
+      socket.emit('workspace:leave', workspaceId);
+      socket.off('task:created', onCreated);
+      socket.off('task:updated', onUpdated);
+      socket.off('task:deleted', onDeleted);
+    };
+  }, [workspaceId]);
 
   const visibleTasks = useMemo(() => {
     const q = search.trim().toLowerCase();

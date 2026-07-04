@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../lib/api';
+import { getSocket } from '../lib/socket';
 import { Avatar } from './Avatar';
 import { displayName, type ActivityEvent, type ActivityType } from '../types';
 
@@ -66,6 +67,16 @@ export function ActivityPanel({
     const id = setInterval(() => void loadFeed(), FEED_POLL_MS);
     return () => clearInterval(id);
   }, [loadFeed]);
+
+  useEffect(() => {
+    const socket = getSocket();
+    const onNew = (ev: ActivityEvent) =>
+      setFeed((prev) => (prev?.some((e) => e.id === ev.id) ? prev : [ev, ...(prev ?? [])]));
+    socket.on('activity:new', onNew);
+    return () => {
+      socket.off('activity:new', onNew);
+    };
+  }, []);
 
   useEffect(() => {
     if (tab !== 'github' || github || !hasRepo) return;

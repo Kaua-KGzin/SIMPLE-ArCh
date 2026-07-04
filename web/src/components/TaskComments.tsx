@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
+import { getSocket } from '../lib/socket';
 import { Avatar } from './Avatar';
 import { displayName, type Comment, type Member } from '../types';
 
@@ -65,6 +66,26 @@ export function TaskComments({
     const id = setInterval(() => void load(), POLL_MS);
     return () => clearInterval(id);
   }, [load]);
+
+  // Comentários de colegas aparecem na hora (a task já está numa sala de
+  // workspace via Board.tsx; aqui só filtramos pelo taskId certo).
+  useEffect(() => {
+    const socket = getSocket();
+    const onCreated = (c: Comment) => {
+      if (c.taskId !== taskId) return;
+      setComments((cs) => (cs?.some((x) => x.id === c.id) ? cs : [...(cs ?? []), c]));
+    };
+    const onDeleted = ({ id, taskId: tId }: { id: string; taskId: string }) => {
+      if (tId !== taskId) return;
+      setComments((cs) => (cs ?? []).filter((c) => c.id !== id));
+    };
+    socket.on('comment:created', onCreated);
+    socket.on('comment:deleted', onDeleted);
+    return () => {
+      socket.off('comment:created', onCreated);
+      socket.off('comment:deleted', onDeleted);
+    };
+  }, [taskId]);
 
   async function send(e: React.FormEvent) {
     e.preventDefault();

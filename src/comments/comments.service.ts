@@ -3,10 +3,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { MemberRole } from '@prisma/client';
+import { MemberRole, NotificationType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ActivityService } from '../activity/activity.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
+import { NotificationsService } from '../notifications/notifications.service';
 
 /** Select público do autor, mesmo formato dos demais endpoints. */
 const authorInclude = {
@@ -24,6 +26,8 @@ export class CommentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly activity: ActivityService,
+    private readonly realtime: RealtimeGateway,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async create(workspaceId: string, taskId: string, authorId: string, dto: CreateCommentDto) {
@@ -42,7 +46,40 @@ export class CommentsService {
       authorId,
       task.id,
     );
+    this.realtime.emitToWorkspace(workspaceId, 'comment:created', comment);
+    await this.notifyMentions(workspaceId, task.id, authorId, comment.body, comment.author.name ?? comment.author.githubLogin);
     return comment;
+  }
+
+  /** Casa "@Nome" / "@login" (mesmo formato inserido pelo front) com membros do workspace. */
+  private async notifyMentions(
+    workspaceId: string,
+    taskId: string,
+    authorId: string,
+    body: string,
+    authorName: string | null | undefined,
+  ): Promise<void> {
+    const mentioned = [...body.matchAll(/@([\w.-]+)/g)].map((m) => m[1].toLowerCase());
+    if (mentioned.length === 0) return;
+
+    const members = await this.prisma.workspaceMember.findMany({
+      where: { workspaceId },
+      include: { user: { select: { id: true, name: true, githubLogin: true } } },
+    });
+
+    for (const member of members) {
+      const tag = (member.user.name ?? member.user.githubLogin ?? '').replace(/\s+/g, '').toLowerCase();
+      if (tag && mentioned.includes(tag)) {
+        await this.notifications.notify({
+          userId: member.user.id,
+          type: NotificationType.MENTION,
+          message: `${authorName ?? 'alguém'} mencionou você num comentário`,
+          workspaceId,
+          actorId: authorId,
+          taskId,
+        });
+      }
+    }
   }
 
   async list(workspaceId: string, taskId: string, userId: string) {
@@ -71,6 +108,7 @@ export class CommentsService {
     }
 
     await this.prisma.comment.delete({ where: { id: commentId } });
+    this.realtime.emitToWorkspace(workspaceId, 'comment:deleted', { id: commentId, taskId });
   }
 
   /** 404 para não-membro (não revela a existência do workspace). */

@@ -20,6 +20,9 @@ import { WorkspacesService } from './workspaces/workspaces.service';
 import { ActivityService } from './activity/activity.service';
 import { CommentsController } from './comments/comments.controller';
 import { CommentsService } from './comments/comments.service';
+import { RealtimeGateway } from './realtime/realtime.gateway';
+import { NotificationsController } from './notifications/notifications.controller';
+import { NotificationsService } from './notifications/notifications.service';
 
 /**
  * Módulo raiz. Aqui o container de Injeção de Dependência do Nest é montado:
@@ -48,6 +51,7 @@ import { CommentsService } from './comments/comments.service';
     TasksController,
     WorkspacesController,
     CommentsController,
+    NotificationsController,
   ],
   providers: [
     PrismaService,
@@ -60,6 +64,8 @@ import { CommentsService } from './comments/comments.service';
     WorkspacesService,
     ActivityService,
     CommentsService,
+    RealtimeGateway,
+    NotificationsService,
     { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
   exports: [PrismaService],

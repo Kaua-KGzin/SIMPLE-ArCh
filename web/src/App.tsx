@@ -4,10 +4,17 @@ import { Login } from './pages/Login';
 import { AuthSuccess } from './pages/AuthSuccess';
 import { Workspaces } from './pages/Workspaces';
 import { Board } from './pages/Board';
+import { NotificationBell } from './components/NotificationBell';
 
 /** Rotas privadas: sem token, volta pro login. */
 function RequireAuth() {
-  return auth.isLoggedIn() ? <Outlet /> : <Navigate to="/login" replace />;
+  if (!auth.isLoggedIn()) return <Navigate to="/login" replace />;
+  return (
+    <>
+      <NotificationBell />
+      <Outlet />
+    </>
+  );
 }
 
 export function App() {

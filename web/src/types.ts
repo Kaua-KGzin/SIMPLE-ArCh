@@ -69,3 +69,16 @@ export interface ActivityEvent {
   taskId: string | null;
   createdAt: string;
 }
+
+export type NotificationType = 'MENTION' | 'ASSIGNED' | 'COMMENT';
+
+export interface Notification {
+  id: string;
+  type: NotificationType;
+  message: string;
+  read: boolean;
+  workspaceId: string;
+  taskId: string | null;
+  actor: PublicUser | null;
+  createdAt: string;
+}

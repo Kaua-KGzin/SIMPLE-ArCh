@@ -75,6 +75,25 @@ botão "Entrar com GitHub" e o espelhamento task ↔ Issue.
    com GitHub usando o mesmo e-mail tem as contas unificadas
    automaticamente — passa a poder entrar dos dois jeitos.
 
+## Notificações e tempo real (WebSocket)
+
+O board, os comentários e as notificações agora recebem atualizações via
+WebSocket (Socket.IO), além do polling que já existia (que continua como
+rede de segurança). Em **dev** (`node dist/main.js`, processo único e
+sempre ativo) isso funciona sem configuração extra.
+
+Em **produção na Vercel**, `api/index.js` roda como função **serverless**
+(instâncias efêmeras, sem estado persistente entre invocações). Conexões
+WebSocket não são garantidas nesse modelo — funcionam enquanto a mesma
+instância segue "quente", mas podem cair/reconectar com mais frequência
+que num servidor sempre ativo, e salas do Socket.IO não são compartilhadas
+entre instâncias diferentes. Na prática: notificações e board continuam
+funcionando (o polling cobre o que o socket perder), mas a experiência
+"tempo real" fica menos consistente do que rodando a API num processo
+sempre ativo (Railway, Render, Fly.io, um VPS, etc.). Se tempo real
+estável for prioridade, mova a API para um desses serviços e aponte
+`VITE_API_URL` do frontend (que pode continuar na Vercel) para ela.
+
 ## Verificação pós-deploy
 
 1. Abra a URL do projeto → tela de login.

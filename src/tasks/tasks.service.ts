@@ -4,12 +4,14 @@ import {
   BadRequestException,
   Logger,
 } from '@nestjs/common';
-import { Task } from '@prisma/client';
+import { NotificationType, Task } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ActivityService } from '../activity/activity.service';
 import { GithubApiService } from './github-api.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
+import { NotificationsService } from '../notifications/notifications.service';
 
 /** Campos públicos do assignee devolvidos junto com a task (para o board). */
 const taskInclude = {
@@ -35,6 +37,8 @@ export class TasksService {
     private readonly prisma: PrismaService,
     private readonly githubApi: GithubApiService,
     private readonly activity: ActivityService,
+    private readonly realtime: RealtimeGateway,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async create(workspaceId: string, creatorId: string, dto: CreateTaskDto): Promise<Task> {
@@ -88,6 +92,18 @@ export class TasksService {
       creatorId,
       task.id,
     );
+    this.realtime.emitToWorkspace(workspaceId, 'task:created', task);
+
+    if (dto.assigneeId) {
+      await this.notifications.notify({
+        userId: dto.assigneeId,
+        type: NotificationType.ASSIGNED,
+        message: `atribuiu "${task.title}" a você`,
+        workspaceId,
+        actorId: creatorId,
+        taskId: task.id,
+      });
+    }
     return task;
   }
 
@@ -128,6 +144,7 @@ export class TasksService {
         task.id,
       );
     }
+    this.realtime.emitToWorkspace(workspaceId, 'task:updated', updated);
     return updated;
   }
 
@@ -173,6 +190,7 @@ export class TasksService {
       `apagou a task "${task.title}"`,
       actorId,
     );
+    this.realtime.emitToWorkspace(workspaceId, 'task:deleted', { id: taskId });
   }
 
   /**
@@ -230,7 +248,18 @@ export class TasksService {
         actorId,
         task.id,
       );
+      if (dto.assigneeId) {
+        await this.notifications.notify({
+          userId: dto.assigneeId,
+          type: NotificationType.ASSIGNED,
+          message: `atribuiu "${updated.title}" a você`,
+          workspaceId,
+          actorId,
+          taskId: task.id,
+        });
+      }
     }
+    this.realtime.emitToWorkspace(workspaceId, 'task:updated', updated);
     return updated;
   }
 
