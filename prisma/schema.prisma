@@ -34,6 +34,11 @@ model User {
   // Hash bcrypt. Null para usuários que só entraram via GitHub.
   passwordHash String?
 
+  // Versão dos tokens: entra no payload do JWT. Incrementar (ex.: "sair de
+  // todos os dispositivos" ou troca de senha) invalida TODOS os JWTs antigos,
+  // já que a versão deixa de bater na validação — revogação sem tabela de sessão.
+  tokenVersion Int @default(0)
+
   // --- Identidade no GitHub (OPCIONAL: nem todo usuário conecta o GitHub) ---
   // githubId é o identificador IMUTÁVEL do GitHub (o username pode mudar; o id, não).
   // Por isso fazemos o "match" do usuário por githubId, nunca pelo login.
@@ -59,6 +64,8 @@ model User {
   assignedTasks    Task[]             @relation("TaskAssignee")
   comments         Comment[]
   activityEvents   ActivityEvent[]
+  notifications    Notification[]     @relation("NotificationRecipient")
+  triggeredNotifications Notification[] @relation("NotificationActor")
 
   @@map("users")
 }
@@ -89,6 +96,7 @@ model Workspace {
   members WorkspaceMember[]
   tasks   Task[]
   events  ActivityEvent[]
+  labels  Label[]
 
   @@map("workspaces")
 }
@@ -120,10 +128,13 @@ model WorkspaceMember {
 //  para uma issue do GitHub via githubIssueNumber.
 // ----------------------------------------------------------------------------
 model Task {
-  id          String     @id @default(cuid())
+  id          String       @id @default(cuid())
   title       String
   description String?
-  status      TaskStatus @default(BACKLOG)
+  status      TaskStatus   @default(BACKLOG)
+  priority    TaskPriority @default(MEDIUM)
+  // Prazo opcional. A UI destaca tasks vencidas comparando com "agora".
+  dueDate     DateTime?
 
   // --- Mapeamento com o GitHub ---
   // O número da issue é único DENTRO de um repositório, não globalmente.
@@ -146,11 +157,69 @@ model Task {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  comments Comment[]
+  comments  Comment[]
+  labels    TaskLabel[]
+  checklist ChecklistItem[]
 
   @@unique([workspaceId, githubIssueNumber])
-  @@index([status])
+  // Composto: toda consulta de board filtra por workspace primeiro, depois status.
+  @@index([workspaceId, status])
   @@map("tasks")
+}
+
+// ----------------------------------------------------------------------------
+//  LABEL  (etiqueta por workspace)
+//  Cada workspace define suas próprias etiquetas coloridas; uma task pode ter
+//  várias (relação N:N via TaskLabel).
+// ----------------------------------------------------------------------------
+model Label {
+  id    String @id @default(cuid())
+  name  String
+  color String // hex, ex.: "#ef4444"
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  tasks     TaskLabel[]
+  createdAt DateTime    @default(now())
+
+  // Nome único dentro do workspace (não globalmente).
+  @@unique([workspaceId, name])
+  @@map("labels")
+}
+
+// ----------------------------------------------------------------------------
+//  TASK_LABEL  (join N:N entre Task e Label)
+// ----------------------------------------------------------------------------
+model TaskLabel {
+  taskId  String
+  task    Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  labelId String
+  label   Label  @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, labelId])
+  @@index([labelId])
+  @@map("task_labels")
+}
+
+// ----------------------------------------------------------------------------
+//  CHECKLIST_ITEM  (subtarefa/checklist de uma task)
+//  Itens simples marcáveis — decompõem uma task sem virar tasks separadas.
+// ----------------------------------------------------------------------------
+model ChecklistItem {
+  id   String  @id @default(cuid())
+  text String
+  done Boolean @default(false)
+  // Ordem manual dentro da task (arrastar/reordenar no futuro).
+  order Int    @default(0)
+
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([taskId, order])
+  @@map("checklist_items")
 }
 
 // ----------------------------------------------------------------------------
@@ -203,6 +272,36 @@ model ActivityEvent {
 }
 
 // ----------------------------------------------------------------------------
+//  NOTIFICATION
+//  Notificação pessoal (menção, atribuição de task...). Distinta do
+//  ActivityEvent (feed público do workspace): aqui é por USUÁRIO, com
+//  estado de lida/não-lida, e dispara também em tempo real via WebSocket.
+// ----------------------------------------------------------------------------
+model Notification {
+  id      String           @id @default(cuid())
+  type    NotificationType
+  message String
+
+  userId String
+  user   User   @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+
+  // Quem causou a notificação (null para eventos de sistema/webhook).
+  actorId String?
+  actor   User?   @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  workspaceId String
+  // Referências FRACAS (sem FK): task/comentário podem ser apagados depois.
+  taskId    String?
+  commentId String?
+
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, read, createdAt])
+  @@map("notifications")
+}
+
+// ----------------------------------------------------------------------------
 //  ENUMS
 //  Enums dão segurança de tipo e viram tipos nativos no PostgreSQL.
 // ----------------------------------------------------------------------------
@@ -220,6 +319,13 @@ enum TaskStatus {
   DONE
 }
 
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
 enum ActivityType {
   TASK_CREATED
   TASK_MOVED
@@ -228,4 +334,10 @@ enum ActivityType {
   COMMENT_ADDED
   MEMBER_JOINED
   PR_LINKED
+}
+
+enum NotificationType {
+  MENTION
+  ASSIGNED
+  COMMENT
 }

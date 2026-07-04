@@ -3,10 +3,12 @@
 Plataforma de colaboração para equipes de desenvolvimento. Funciona de
 forma independente (login por e-mail/senha, boards e tasks próprios) e,
 **opcionalmente**, sincroniza bidirecionalmente com o GitHub: tasks viram
-Issues, e PRs/issues no GitHub atualizam o board via webhooks.
+Issues, e PRs/issues no GitHub atualizam o board via webhooks. Board,
+comentários (com @menções) e notificações pessoais (menção, atribuição de
+task) atualizam em tempo real via WebSocket.
 
 ## Stack
-- **Backend:** NestJS + Prisma + PostgreSQL (GitHub OAuth, JWT, webhooks HMAC)
+- **Backend:** NestJS + Prisma + PostgreSQL (GitHub OAuth, JWT, webhooks HMAC, WebSocket via Socket.IO)
 - **Frontend:** React + Vite + Tailwind (board kanban com drag & drop)
 
 ## Rodar em dev

@@ -4,16 +4,20 @@ import {
   BadRequestException,
   Logger,
 } from '@nestjs/common';
-import { Task } from '@prisma/client';
+import { NotificationType, Task } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ActivityService } from '../activity/activity.service';
 import { GithubApiService } from './github-api.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
+import { NotificationsService } from '../notifications/notifications.service';
 
-/** Campos públicos do assignee devolvidos junto com a task (para o board). */
+/** O que devolvemos junto com a task no board: assignee, labels e checklist. */
 const taskInclude = {
   assignee: { select: { id: true, name: true, githubLogin: true, avatarUrl: true } },
+  labels: { include: { label: true } },
+  checklist: { orderBy: { order: 'asc' } },
 } as const;
 
 /**
@@ -35,6 +39,8 @@ export class TasksService {
     private readonly prisma: PrismaService,
     private readonly githubApi: GithubApiService,
     private readonly activity: ActivityService,
+    private readonly realtime: RealtimeGateway,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async create(workspaceId: string, creatorId: string, dto: CreateTaskDto): Promise<Task> {
@@ -44,6 +50,8 @@ export class TasksService {
     });
 
     if (!workspace) throw new NotFoundException('Workspace não encontrado.');
+
+    await this.assertLabelsInWorkspace(workspaceId, dto.labelIds ?? []);
 
     // GitHub é OPCIONAL: só tentamos criar a Issue se o workspace tiver repo
     // vinculado e o dono tiver token válido. Sem isso (ou se a chamada ao
@@ -70,10 +78,16 @@ export class TasksService {
         workspaceId: workspace.id,
         creatorId,
         assigneeId: dto.assigneeId,
+        priority: dto.priority,
+        dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
+        labels: dto.labelIds?.length
+          ? { create: dto.labelIds.map((labelId) => ({ labelId })) }
+          : undefined,
         githubIssueNumber: issue?.number,
         githubIssueId: issue ? String(issue.id) : undefined,
         // status default = BACKLOG (o webhook de PR o moverá depois)
       },
+      include: taskInclude,
     });
 
     this.logger.log(
@@ -88,6 +102,18 @@ export class TasksService {
       creatorId,
       task.id,
     );
+    this.realtime.emitToWorkspace(workspaceId, 'task:created', task);
+
+    if (dto.assigneeId) {
+      await this.notifications.notify({
+        userId: dto.assigneeId,
+        type: NotificationType.ASSIGNED,
+        message: `atribuiu "${task.title}" a você`,
+        workspaceId,
+        actorId: creatorId,
+        taskId: task.id,
+      });
+    }
     return task;
   }
 
@@ -128,6 +154,7 @@ export class TasksService {
         task.id,
       );
     }
+    this.realtime.emitToWorkspace(workspaceId, 'task:updated', updated);
     return updated;
   }
 
@@ -173,6 +200,7 @@ export class TasksService {
       `apagou a task "${task.title}"`,
       actorId,
     );
+    this.realtime.emitToWorkspace(workspaceId, 'task:deleted', { id: taskId });
   }
 
   /**
@@ -198,12 +226,21 @@ export class TasksService {
       }
     }
 
+    if (dto.labelIds) await this.assertLabelsInWorkspace(workspaceId, dto.labelIds);
+
     const updated = await this.prisma.task.update({
       where: { id: taskId },
       data: {
         title: dto.title,
         description: dto.description,
         assigneeId: dto.assigneeId, // string atribui, null desatribui, undefined não mexe
+        priority: dto.priority,
+        // undefined = não mexe; null = remove o prazo; string = define.
+        dueDate: dto.dueDate === undefined ? undefined : dto.dueDate ? new Date(dto.dueDate) : null,
+        // labelIds enviado SUBSTITUI o conjunto: apaga os vínculos e recria.
+        labels: dto.labelIds
+          ? { deleteMany: {}, create: dto.labelIds.map((labelId) => ({ labelId })) }
+          : undefined,
       },
       include: taskInclude,
     });
@@ -230,7 +267,18 @@ export class TasksService {
         actorId,
         task.id,
       );
+      if (dto.assigneeId) {
+        await this.notifications.notify({
+          userId: dto.assigneeId,
+          type: NotificationType.ASSIGNED,
+          message: `atribuiu "${updated.title}" a você`,
+          workspaceId,
+          actorId,
+          taskId: task.id,
+        });
+      }
     }
+    this.realtime.emitToWorkspace(workspaceId, 'task:updated', updated);
     return updated;
   }
 
@@ -261,12 +309,87 @@ export class TasksService {
     );
   }
 
-  /** Lista as tasks de um workspace (board), já com o assignee para os avatares. */
-  async listByWorkspace(workspaceId: string): Promise<Task[]> {
-    return this.prisma.task.findMany({
-      where: { workspaceId },
+  // Quantas tasks DONE o board traz por padrão. As não-concluídas vêm sempre
+  // todas (são o trabalho ativo); só a coluna "Concluído" é limitada, para o
+  // board não crescer sem teto ao longo dos meses.
+  private static readonly DONE_LIMIT = 50;
+
+  /**
+   * Lista as tasks do board (com assignee, labels e checklist).
+   *
+   * `q` faz busca ampla (título, descrição E comentários — `comments: { some }`
+   * resolve o join no Postgres). Buscar implica ver tudo que casa, inclusive
+   * concluídas antigas.
+   *
+   * Sem busca e sem `allDone`, aplicamos a regra "esconder concluídas antigas":
+   * todas as ativas + as DONE mais recentes. Duas queries em paralelo em vez de
+   * uma — é o jeito limpo de "tudo de um lado, top-N do outro" no Prisma.
+   */
+  async listByWorkspace(workspaceId: string, q?: string, allDone = false): Promise<Task[]> {
+    const term = q?.trim();
+    const searchWhere = term
+      ? {
+          OR: [
+            { title: { contains: term, mode: 'insensitive' as const } },
+            { description: { contains: term, mode: 'insensitive' as const } },
+            { comments: { some: { body: { contains: term, mode: 'insensitive' as const } } } },
+          ],
+        }
+      : {};
+
+    // Busca ou "ver todas concluídas": uma query só, sem limitar DONE.
+    if (term || allDone) {
+      return this.prisma.task.findMany({
+        where: { workspaceId, ...searchWhere },
+        include: taskInclude,
+        orderBy: { createdAt: 'desc' },
+      });
+    }
+
+    const [active, recentDone] = await Promise.all([
+      this.prisma.task.findMany({
+        where: { workspaceId, status: { not: 'DONE' } },
+        include: taskInclude,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.task.findMany({
+        where: { workspaceId, status: 'DONE' },
+        include: taskInclude,
+        orderBy: { updatedAt: 'desc' }, // concluídas mais recentemente primeiro
+        take: TasksService.DONE_LIMIT,
+      }),
+    ]);
+    return [...active, ...recentDone];
+  }
+
+  /** Busca uma task já no formato do board (assignee, labels, checklist). */
+  async getForBoard(workspaceId: string, taskId: string): Promise<Task> {
+    const task = await this.prisma.task.findFirst({
+      where: { id: taskId, workspaceId },
       include: taskInclude,
-      orderBy: { createdAt: 'desc' },
     });
+    if (!task) throw new NotFoundException('Task não encontrada neste workspace.');
+    return task;
+  }
+
+  /** Re-emite a task no board — usado por mudanças fora do TasksService (checklist). */
+  async emitTaskUpdated(workspaceId: string, taskId: string): Promise<void> {
+    const task = await this.getForBoard(workspaceId, taskId);
+    this.realtime.emitToWorkspace(workspaceId, 'task:updated', task);
+  }
+
+  /**
+   * Garante que todos os labelIds informados existem E pertencem ao workspace
+   * — impede vincular a uma task uma label de outro workspace.
+   */
+  private async assertLabelsInWorkspace(workspaceId: string, labelIds: string[]): Promise<void> {
+    const unique = [...new Set(labelIds)];
+    if (unique.length === 0) return;
+    const count = await this.prisma.label.count({
+      where: { id: { in: unique }, workspaceId },
+    });
+    if (count !== unique.length) {
+      throw new BadRequestException('Uma ou mais etiquetas não pertencem a este workspace.');
+    }
   }
 }

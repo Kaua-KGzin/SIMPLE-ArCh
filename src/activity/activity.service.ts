@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ActivityType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
 
 /** Select público do ator, no mesmo formato dos demais endpoints. */
 const actorSelect = {
@@ -18,7 +19,10 @@ const actorSelect = {
 export class ActivityService {
   private readonly logger = new Logger(ActivityService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly realtime: RealtimeGateway,
+  ) {}
 
   async record(
     workspaceId: string,
@@ -28,9 +32,11 @@ export class ActivityService {
     taskId?: string | null,
   ): Promise<void> {
     try {
-      await this.prisma.activityEvent.create({
+      const event = await this.prisma.activityEvent.create({
         data: { workspaceId, type, summary, actorId, taskId },
+        include: { actor: { select: { id: true, name: true, githubLogin: true, avatarUrl: true } } },
       });
+      this.realtime.emitToWorkspace(workspaceId, 'activity:new', event);
     } catch (err) {
       this.logger.error(`Falha ao registrar atividade ${type} (seguindo sem desfazer):`, err);
     }

@@ -44,8 +44,8 @@ export function Workspaces() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-10">
-      <header className="mb-8 flex items-center justify-between">
+    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-10">
+      <header className="mb-8 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">Meus Workspaces</h1>
         <div className="flex gap-3">
           <button
@@ -53,6 +53,22 @@ export function Workspaces() {
             className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium hover:bg-indigo-500"
           >
             {showForm ? 'Cancelar' : '+ Novo workspace'}
+          </button>
+          <button
+            onClick={async () => {
+              if (!confirm('Encerrar a sessão em TODOS os dispositivos? Você seguirá conectado só aqui.')) return;
+              try {
+                const { accessToken } = await api<{ accessToken: string }>('/auth/logout-all', { method: 'POST' });
+                auth.setToken(accessToken); // mantém ESTA sessão válida com a nova versão
+                alert('Sessões encerradas nos outros dispositivos.');
+              } catch (e) {
+                setError((e as Error).message);
+              }
+            }}
+            className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-400 hover:text-zinc-100"
+            title="Invalida os tokens em todos os dispositivos"
+          >
+            Sair de tudo
           </button>
           <button
             onClick={() => { auth.clear(); window.location.href = '/login'; }}

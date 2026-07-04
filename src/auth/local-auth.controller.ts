@@ -1,5 +1,7 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { CurrentUser, AuthUser } from './current-user.decorator';
 import { LocalAuthService } from './local-auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -26,5 +28,17 @@ export class LocalAuthController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   login(@Body() dto: LoginDto): Promise<{ accessToken: string }> {
     return this.localAuth.login(dto);
+  }
+
+  /**
+   * Sair de todos os dispositivos: invalida todos os JWTs existentes e devolve
+   * um token novo para esta sessão continuar. Serve para reagir a um token
+   * possivelmente vazado sem esperar os 7 dias de expiração.
+   */
+  @Post('logout-all')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  logoutAll(@CurrentUser() user: AuthUser): Promise<{ accessToken: string }> {
+    return this.localAuth.revokeAllSessions(user.id);
   }
 }

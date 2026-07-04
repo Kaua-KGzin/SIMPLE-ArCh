@@ -10,6 +10,7 @@ import { MemberRole, Workspace } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ActivityService } from '../activity/activity.service';
 import { GithubApiService } from '../tasks/github-api.service';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
 import { LinkRepoDto } from './dto/link-repo.dto';
 import { InviteMemberDto } from './dto/invite-member.dto';
@@ -31,6 +32,7 @@ export class WorkspacesService {
     private readonly prisma: PrismaService,
     private readonly githubApi: GithubApiService,
     private readonly activity: ActivityService,
+    private readonly realtime: RealtimeGateway,
   ) {}
 
   // --------------------------------------------------------------------------
@@ -220,6 +222,9 @@ export class WorkspacesService {
     }
 
     await this.prisma.workspaceMember.delete({ where: { id: membership.id } });
+    // Corta o tempo real na hora: sem isto, um socket já conectado continuaria
+    // recebendo eventos do board até a pessoa recarregar a página.
+    await this.realtime.removeUserFromWorkspace(memberUserId, workspaceId);
   }
 
   // --------------------------------------------------------------------------

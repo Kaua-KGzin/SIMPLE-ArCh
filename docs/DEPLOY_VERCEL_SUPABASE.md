@@ -75,6 +75,50 @@ botão "Entrar com GitHub" e o espelhamento task ↔ Issue.
    com GitHub usando o mesmo e-mail tem as contas unificadas
    automaticamente — passa a poder entrar dos dois jeitos.
 
+## Notificações e tempo real (WebSocket)
+
+O board, os comentários e as notificações agora recebem atualizações via
+WebSocket (Socket.IO), além do polling que já existia (que continua como
+rede de segurança). Em **dev** (`node dist/main.js`, processo único e
+sempre ativo) isso funciona sem configuração extra.
+
+Em **produção na Vercel**, `api/index.js` roda como função **serverless**
+(instâncias efêmeras, sem estado persistente entre invocações). Conexões
+WebSocket não são garantidas nesse modelo — funcionam enquanto a mesma
+instância segue "quente", mas podem cair/reconectar com mais frequência
+que num servidor sempre ativo, e salas do Socket.IO não são compartilhadas
+entre instâncias diferentes. Na prática: notificações e board continuam
+funcionando (o polling cobre o que o socket perder), mas a experiência
+"tempo real" fica menos consistente do que rodando a API num processo
+sempre ativo (Railway, Render, Fly.io, um VPS, etc.). Se tempo real
+estável for prioridade, mova a API para um desses serviços e aponte
+`VITE_API_URL` do frontend (que pode continuar na Vercel) para ela.
+
+## Observabilidade (Sentry) — opcional
+
+O código já tem a instrumentação pronta; ela só liga quando os DSNs existem.
+Sem eles, é no-op e nada muda. Para ativar:
+
+1. No Sentry, na organização `simple-thx`, crie **dois** projetos:
+   - um projeto **Node** (para o backend) → copie o DSN;
+   - um projeto **React** (para o frontend) → copie o DSN.
+2. Na Vercel (Settings → Environment Variables), adicione:
+
+   | Nome | Valor |
+   |---|---|
+   | `SENTRY_DSN` | DSN do projeto Node |
+   | `VITE_SENTRY_DSN` | DSN do projeto React (precisa do prefixo `VITE_` para o build do Vite expor) |
+
+   Opcionais: `SENTRY_TRACES_SAMPLE_RATE` / `VITE_SENTRY_TRACES_SAMPLE_RATE`
+   (fração de requisições com trace de performance; padrão `0.1`).
+3. **Redeploy** (variável nova exige deploy novo). O backend passa a reportar
+   erros 5xx (4xx são fluxo normal e ficam de fora); o frontend reporta
+   exceções não tratadas.
+
+Há também um **health check** público em `GET /health` (retorna
+`{ status, db }` após um `SELECT 1` real) — aponte um monitor de uptime para
+ele para receber alerta se a API ou o banco caírem.
+
 ## Verificação pós-deploy
 
 1. Abra a URL do projeto → tela de login.
