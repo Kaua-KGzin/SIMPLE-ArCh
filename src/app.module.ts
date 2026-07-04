@@ -2,9 +2,11 @@ import { Module, Global } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PrismaService } from './prisma/prisma.service';
+import { HealthController } from './common/health.controller';
+import { SentryExceptionFilter } from './common/sentry-exception.filter';
 import { AuthController } from './auth/auth.controller';
 import { GithubOAuthService } from './auth/github-oauth.service';
 import { LocalAuthController } from './auth/local-auth.controller';
@@ -53,6 +55,7 @@ import { NotificationsService } from './notifications/notifications.service';
     WorkspacesController,
     CommentsController,
     NotificationsController,
+    HealthController,
   ],
   providers: [
     PrismaService,
@@ -69,6 +72,8 @@ import { NotificationsService } from './notifications/notifications.service';
     RealtimeGateway,
     NotificationsService,
     { provide: APP_GUARD, useClass: ThrottlerGuard },
+    // Reporta exceções 5xx ao Sentry sem mudar o formato de resposta de erro.
+    { provide: APP_FILTER, useClass: SentryExceptionFilter },
   ],
   exports: [PrismaService],
 })

@@ -9,6 +9,9 @@
  * A instância é criada UMA vez por cold start e reaproveitada entre
  * invocações (padrão para Express em serverless).
  */
+// Antes de tudo: instrumenta o processo cedo (no-op sem SENTRY_DSN).
+require('../dist/common/sentry').initSentry();
+
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const { NestFactory } = require('@nestjs/core');

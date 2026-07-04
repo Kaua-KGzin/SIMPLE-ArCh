@@ -94,6 +94,31 @@ sempre ativo (Railway, Render, Fly.io, um VPS, etc.). Se tempo real
 estável for prioridade, mova a API para um desses serviços e aponte
 `VITE_API_URL` do frontend (que pode continuar na Vercel) para ela.
 
+## Observabilidade (Sentry) — opcional
+
+O código já tem a instrumentação pronta; ela só liga quando os DSNs existem.
+Sem eles, é no-op e nada muda. Para ativar:
+
+1. No Sentry, na organização `simple-thx`, crie **dois** projetos:
+   - um projeto **Node** (para o backend) → copie o DSN;
+   - um projeto **React** (para o frontend) → copie o DSN.
+2. Na Vercel (Settings → Environment Variables), adicione:
+
+   | Nome | Valor |
+   |---|---|
+   | `SENTRY_DSN` | DSN do projeto Node |
+   | `VITE_SENTRY_DSN` | DSN do projeto React (precisa do prefixo `VITE_` para o build do Vite expor) |
+
+   Opcionais: `SENTRY_TRACES_SAMPLE_RATE` / `VITE_SENTRY_TRACES_SAMPLE_RATE`
+   (fração de requisições com trace de performance; padrão `0.1`).
+3. **Redeploy** (variável nova exige deploy novo). O backend passa a reportar
+   erros 5xx (4xx são fluxo normal e ficam de fora); o frontend reporta
+   exceções não tratadas.
+
+Há também um **health check** público em `GET /health` (retorna
+`{ status, db }` após um `SELECT 1` real) — aponte um monitor de uptime para
+ele para receber alerta se a API ou o banco caírem.
+
 ## Verificação pós-deploy
 
 1. Abra a URL do projeto → tela de login.

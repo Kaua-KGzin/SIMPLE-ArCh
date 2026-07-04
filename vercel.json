@@ -16,6 +16,7 @@
     { "source": "/workspaces/:path*", "destination": "/api" },
     { "source": "/notifications", "destination": "/api" },
     { "source": "/notifications/:path*", "destination": "/api" },
+    { "source": "/health", "destination": "/api" },
     { "source": "/socket.io/:path*", "destination": "/api" },
     { "source": "/api/:path*", "destination": "/api" },
     { "source": "/(.*)", "destination": "/index.html" }

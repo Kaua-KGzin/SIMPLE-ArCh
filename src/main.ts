@@ -1,3 +1,6 @@
+import { initSentry } from './common/sentry';
+initSentry(); // antes de tudo: precisa instrumentar o processo cedo
+
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
