@@ -4,13 +4,8 @@ import { api } from '../lib/api';
 import { getSocket } from '../lib/socket';
 import { toast } from '../lib/toast';
 import { Avatar } from './Avatar';
-import { displayName, type Notification, type NotificationType } from '../types';
-
-const TYPE_ICON: Record<NotificationType, string> = {
-  MENTION: '💬',
-  ASSIGNED: '👤',
-  COMMENT: '💬',
-};
+import { IconBell } from './icons';
+import { displayName, type Notification } from '../types';
 
 function timeAgo(iso: string): string {
   const s = Math.max(1, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
@@ -75,17 +70,17 @@ export function NotificationBell() {
   }, []);
 
   return (
-    <div ref={rootRef} className="fixed right-5 top-5 z-20">
+    <div ref={rootRef} className="fixed right-5 top-5 z-30">
       <button
         onClick={() => setOpen((v) => !v)}
         title="Notificações"
-        className="relative flex h-10 w-10 items-center justify-center rounded-full border border-zinc-700 bg-zinc-900/90 text-lg backdrop-blur transition hover:border-zinc-500"
+        className="relative flex h-10 w-10 items-center justify-center rounded-full border border-line-2 bg-panel/90 text-soft backdrop-blur transition hover:border-faint"
       >
-        🔔
+        <IconBell size={17} />
         {unread > 0 && (
           <span
             key={bump}
-            className="badge-pop absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white"
+            className="badge-pop absolute -right-0.5 -top-0.5 flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-extrabold text-white"
           >
             {unread > 9 ? '9+' : unread}
           </span>
@@ -93,37 +88,36 @@ export function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 max-h-96 w-[calc(100vw-2.5rem)] max-w-sm overflow-y-auto rounded-xl border border-zinc-800 bg-zinc-900 shadow-2xl">
-          <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-2.5">
-            <span className="text-sm font-semibold">Notificações</span>
+        <div className="dialog-in absolute right-0 mt-2 max-h-96 w-[calc(100vw-2.5rem)] max-w-sm overflow-y-auto rounded-2xl border border-line bg-panel shadow-2xl">
+          <div className="flex items-center justify-between border-b border-line px-4 py-3">
+            <span className="font-display text-sm font-semibold">Notificações</span>
             {unread > 0 && (
-              <button onClick={markAllRead} className="text-xs text-indigo-400 hover:text-indigo-300">
+              <button onClick={markAllRead} className="text-xs text-brand-violet hover:brightness-125">
                 marcar todas como lidas
               </button>
             )}
           </div>
           {notifications.length === 0 ? (
-            <p className="px-4 py-6 text-center text-xs text-zinc-600">Nenhuma notificação ainda.</p>
+            <p className="px-4 py-6 text-center text-xs text-faint">Nenhuma notificação ainda.</p>
           ) : (
             <ul>
               {notifications.map((n) => (
                 <li key={n.id}>
                   <button
                     onClick={() => markRead(n)}
-                    className={`flex w-full items-start gap-2.5 border-b border-zinc-800/60 px-4 py-3 text-left text-xs hover:bg-zinc-800/60 ${
+                    className={`flex w-full items-start gap-2.5 border-b border-line/60 px-4 py-3 text-left text-xs transition hover:bg-base-2 ${
                       n.read ? 'opacity-60' : ''
                     }`}
                   >
-                    <span className="mt-0.5 shrink-0">{TYPE_ICON[n.type] ?? '🔔'}</span>
                     {n.actor && <Avatar user={n.actor} size={5} />}
                     <span className="min-w-0 flex-1">
-                      <span className="block leading-relaxed text-zinc-300">
-                        {n.actor && <span className="font-medium text-zinc-100">{displayName(n.actor)} </span>}
+                      <span className="block leading-relaxed text-soft">
+                        {n.actor && <span className="font-semibold text-ink">{displayName(n.actor)} </span>}
                         {n.message}
                       </span>
-                      <span className="text-[10px] text-zinc-600">{timeAgo(n.createdAt)}</span>
+                      <span className="text-[10px] text-faint-2">{timeAgo(n.createdAt)}</span>
                     </span>
-                    {!n.read && <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500" />}
+                    {!n.read && <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-violet" />}
                   </button>
                 </li>
               ))}

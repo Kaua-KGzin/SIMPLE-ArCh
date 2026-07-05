@@ -30,22 +30,22 @@ export function ConfirmHost() {
         role="alertdialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
-        className="dialog-in w-full max-w-sm rounded-2xl border border-zinc-700 bg-zinc-900 p-6 shadow-2xl"
+        className="dialog-in w-full max-w-sm rounded-[18px] border border-line-2 bg-panel p-6 shadow-2xl"
       >
-        <h2 className="text-lg font-semibold">{req.title}</h2>
-        {req.message && <p className="mt-2 text-sm text-zinc-400">{req.message}</p>}
+        <h2 className="font-display text-lg font-semibold">{req.title}</h2>
+        {req.message && <p className="mt-2 text-sm text-soft-2">{req.message}</p>}
         <div className="mt-6 flex justify-end gap-2">
           <button
             onClick={() => resolveConfirm(false)}
-            className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:border-zinc-500"
+            className="rounded-[10px] border border-line-2 px-4 py-2 text-sm text-soft transition hover:border-faint"
           >
             Cancelar
           </button>
           <button
             autoFocus
             onClick={() => resolveConfirm(true)}
-            className={`rounded-lg px-4 py-2 text-sm font-medium text-white transition ${
-              req.danger ? 'bg-red-600 hover:bg-red-500' : 'bg-indigo-600 hover:bg-indigo-500'
+            className={`rounded-[10px] px-4 py-2 text-sm font-semibold text-white transition ${
+              req.danger ? 'bg-red-600 hover:bg-red-500' : 'btn-brand'
             }`}
           >
             {req.confirmLabel}

@@ -13,7 +13,12 @@ import { CodeModal } from '../components/CodeModal';
 import { TaskEditModal } from '../components/TaskEditModal';
 import { TaskComments } from '../components/TaskComments';
 import { TaskChecklist } from '../components/TaskChecklist';
-import { PRIORITY_META, PRIORITY_ORDER, dueState, formatDue, textOn } from '../lib/task-meta';
+import {
+  IconChevronLeft, IconNodes, IconUsers, IconTag, IconActivity, IconSearch, IconPencil,
+} from '../components/icons';
+import {
+  PRIORITY_META, PRIORITY_ORDER, COLUMN_META, DUE_STYLE, dueState, formatDue, textOn,
+} from '../lib/task-meta';
 import {
   displayName,
   type ChecklistItem,
@@ -25,31 +30,24 @@ import {
   type Workspace,
 } from '../types';
 
-const DUE_CLASS: Record<'overdue' | 'soon' | 'later', string> = {
-  overdue: 'bg-red-950 text-red-300',
-  soon: 'bg-amber-950 text-amber-300',
-  later: 'bg-zinc-800 text-zinc-400',
-};
-
-const COLUMNS: { status: TaskStatus; label: string; dot: string }[] = [
-  { status: 'BACKLOG', label: 'Backlog', dot: 'bg-zinc-400' },
-  { status: 'TODO', label: 'A Fazer', dot: 'bg-blue-400' },
-  { status: 'IN_PROGRESS', label: 'Em Andamento', dot: 'bg-yellow-400' },
-  { status: 'IN_REVIEW', label: 'Em Revisão', dot: 'bg-purple-400' },
-  { status: 'DONE', label: 'Concluído', dot: 'bg-green-400' },
-];
-
-// O WebSocket é o canal primário; o polling é só reconciliação de segurança
-// (caso o socket caia sem reconectar). Por isso o intervalo é folgado.
 const POLL_MS = 30_000;
 
-/**
- * Board Kanban do workspace.
- * - Auto-atualização via polling: mudanças vindas do GitHub (webhooks)
- *   aparecem sozinhas, sem F5.
- * - Drag & drop entre colunas com atualização otimista.
- * - Busca + filtro por responsável.
- */
+/** Chip de prioridade (mesmo visual no filtro e no card). */
+function PriorityChip({ p, active = true }: { p: TaskPriority; active?: boolean }) {
+  const m = PRIORITY_META[p];
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-bold"
+      style={active
+        ? { borderColor: m.border, background: m.bg, color: m.color }
+        : { borderColor: '#232330', color: '#66647a' }}
+    >
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: active ? m.color : '#66647a' }} />
+      {m.label}
+    </span>
+  );
+}
+
 export function Board() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
@@ -74,20 +72,13 @@ export function Board() {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [openTask, setOpenTask] = useState<string | null>(null);
 
-  // Filtros
   const [search, setSearch] = useState('');
   const [assigneeFilter, setAssigneeFilter] = useState<string | null>(null);
   const [priorityFilter, setPriorityFilter] = useState<TaskPriority | null>(null);
   const [labelFilter, setLabelFilter] = useState<string | null>(null);
-
-  // Por padrão o board esconde as concluídas antigas (só as 50 mais recentes);
-  // este toggle pede todas.
   const [showAllDone, setShowAllDone] = useState(false);
 
-  // Pausa o polling enquanto uma ação otimista está em voo (evita "pulo" visual).
   const busyRef = useRef(false);
-  // Busca e "ver todas concluídas" correm no BACKEND. Os refs carregam o estado
-  // atual para o polling não perdê-lo entre ciclos.
   const searchRef = useRef('');
   const allDoneRef = useRef(false);
 
@@ -121,30 +112,20 @@ export function Board() {
     return () => clearInterval(id);
   }, [workspaceId, refresh]);
 
-  // Busca com debounce: a cada mudança no termo, refaz o fetch (backend).
   useEffect(() => {
     searchRef.current = search;
     const id = setTimeout(() => void refresh(), 300);
     return () => clearTimeout(id);
   }, [search, refresh]);
 
-  // Alternar "ver todas concluídas" refaz o fetch imediatamente.
   useEffect(() => {
     allDoneRef.current = showAllDone;
     void refresh();
   }, [showAllDone, refresh]);
 
-  // Tempo real: entra na sala do workspace e aplica mudanças assim que chegam
-  // (o polling acima continua como rede de segurança caso o socket caia).
   useEffect(() => {
     if (!workspaceId) return;
     const socket = getSocket();
-
-    // Entrar na sala precisa acontecer a CADA (re)conexão: se o socket cair e
-    // reconectar (Wi-Fi, suspensão, deploy do backend), o servidor cria uma
-    // sessão nova que não está em sala nenhuma. Sem reemitir o join no
-    // 'connect', o tempo real pararia silenciosamente até um F5. Também
-    // recarregamos as tasks: eventos perdidos durante a queda voltam de uma vez.
     const join = () => {
       socket.emit('workspace:join', workspaceId);
       void refresh();
@@ -171,7 +152,6 @@ export function Board() {
     };
   }, [workspaceId, refresh]);
 
-  // Busca já foi aplicada no backend; aqui só os filtros de faceta (client-side).
   const visibleTasks = useMemo(() => {
     return tasks.filter((t) => {
       if (assigneeFilter && t.assigneeId !== assigneeFilter) return false;
@@ -181,13 +161,10 @@ export function Board() {
     });
   }, [tasks, assigneeFilter, priorityFilter, labelFilter]);
 
-  // Atualiza o checklist de uma task no estado local (resposta imediata; o
-  // backend re-emite via socket para os demais).
   function setChecklist(taskId: string, items: ChecklistItem[]) {
     setTasks((ts) => ts.map((t) => (t.id === taskId ? { ...t, checklist: items } : t)));
   }
 
-  // Etiquetas para o filtro: as que estão EM USO nas tasks atuais (sem fetch extra).
   const availableLabels = useMemo(() => {
     const map = new Map<string, Label>();
     for (const t of tasks) for (const tl of t.labels ?? []) map.set(tl.label.id, tl.label);
@@ -217,9 +194,8 @@ export function Board() {
 
   async function moveTask(taskId: string, status: TaskStatus) {
     const prev = tasks;
-    if (prev.find((t) => t.id === taskId)?.status === status) return; // já está lá
+    if (prev.find((t) => t.id === taskId)?.status === status) return;
     busyRef.current = true;
-    // View Transition: o card desliza da coluna antiga para a nova.
     withViewTransition(() =>
       setTasks((ts) => ts.map((t) => (t.id === taskId ? { ...t, status } : t))),
     );
@@ -244,58 +220,49 @@ export function Board() {
       });
       setTasks((ts) => ts.map((t) => (t.id === taskId ? updated : t)));
     } catch (e) {
-      setError((e as Error).message);
+      toast.error((e as Error).message);
     }
   }
 
+  const headerBtn = 'flex items-center gap-1.5 rounded-[10px] border border-line-2 bg-panel px-3.5 py-2 text-[13px] font-semibold text-soft transition hover:border-faint';
+  const field = 'w-full rounded-[10px] border border-line-input bg-base-2 px-3 py-2.5 text-sm text-ink outline-none transition focus:border-brand-violet';
+
   return (
-    <div className="min-h-screen px-4 py-4 sm:px-6 sm:py-6">
+    <div className="min-h-screen px-5 py-5 sm:px-7">
       {/* ===== Header ===== */}
-      <header className="mb-5 flex flex-wrap items-center justify-between gap-4">
+      <header className="mb-5 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <Link to="/" className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300">
-            <img src="/icon-192.png" width={16} height={16} className="rounded" alt="" /> Workspaces
+          <Link to="/" className="mb-1.5 inline-flex items-center gap-1.5 text-xs text-faint transition hover:text-soft">
+            <IconChevronLeft size={12} /> Workspaces
           </Link>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight">{workspace?.name ?? '…'}</h1>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="font-display text-[25px] font-semibold tracking-tight">{workspace?.name ?? '…'}</h1>
             {workspace?.githubRepoFullName && (
               <a
                 href={`https://github.com/${workspace.githubRepoFullName}`}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-full border border-zinc-800 bg-zinc-900 px-3 py-1 text-xs text-zinc-400 hover:border-zinc-600 hover:text-zinc-200"
+                target="_blank" rel="noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-full border border-line-2 bg-panel px-3 py-1 font-mono text-[11.5px] text-soft-2 transition hover:border-faint"
               >
-                ⑂ {workspace.githubRepoFullName}
+                <IconNodes size={12} className="text-brand-violet" /> {workspace.githubRepoFullName}
               </a>
             )}
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <button onClick={() => setShowMembers(true)} className="mr-1 hidden -space-x-2 sm:flex" title="Equipe">
-            {members.slice(0, 4).map((m) => <Avatar key={m.id} user={m.user} size={8} />)}
-            {members.length > 4 && (
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-800 text-xs">
-                +{members.length - 4}
-              </span>
-            )}
+          <button onClick={() => setShowMembers(true)} className="mr-0.5 hidden sm:flex" title="Equipe">
+            {members.slice(0, 4).map((m, i) => (
+              <span key={m.id} className="-ml-2 first:ml-0" style={{ zIndex: 4 - i }}><Avatar user={m.user} size={8} /></span>
+            ))}
           </button>
-          <button onClick={() => setShowMembers(true)} className="rounded-lg border border-zinc-700 px-3 py-2 text-sm hover:border-zinc-500">
-            Equipe
-          </button>
-          <button onClick={() => setShowLabels(true)} className="rounded-lg border border-zinc-700 px-3 py-2 text-sm hover:border-zinc-500">
-            Etiquetas
-          </button>
-          <button onClick={() => setShowActivity(true)} className="rounded-lg border border-zinc-700 px-3 py-2 text-sm hover:border-zinc-500">
-            Atividade
-          </button>
+          <button onClick={() => setShowMembers(true)} className={headerBtn}><IconUsers size={14} /> Equipe</button>
+          <button onClick={() => setShowLabels(true)} className={headerBtn}><IconTag size={14} /> Etiquetas</button>
+          <button onClick={() => setShowActivity(true)} className={headerBtn}><IconActivity size={14} /> Atividade</button>
           <button
             onClick={() => setShowForm((v) => !v)}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
-              showForm
-                ? 'border border-zinc-700 text-zinc-300 hover:border-zinc-500'
-                : 'brand-gradient brand-gradient-hover brand-glow text-white'
-            }`}
+            className={showForm
+              ? 'rounded-[10px] border border-line-2 px-4 py-2 text-[13px] font-semibold text-soft transition hover:border-faint'
+              : 'btn-brand rounded-[10px] px-4 py-2 text-[13px]'}
           >
             {showForm ? 'Cancelar' : '+ Nova task'}
           </button>
@@ -303,131 +270,85 @@ export function Board() {
       </header>
 
       {/* ===== Filtros ===== */}
-      <div className="mb-5 flex flex-wrap items-center gap-3">
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar em título, descrição e comentários…"
-          className="w-full sm:w-72 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm outline-none placeholder:text-zinc-600 focus:border-indigo-500"
-        />
+      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-[14px] border border-line bg-column p-3">
+        <div className="relative min-w-[200px] flex-[1_1_240px]">
+          <IconSearch size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint-2" />
+          <input
+            value={search} onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar em título, descrição e comentários…"
+            className="w-full rounded-[10px] border border-line-2 bg-base-2 py-2.5 pl-8 pr-3 text-[13px] text-ink outline-none transition focus:border-brand-violet"
+          />
+        </div>
+
         <div className="flex items-center gap-1.5">
           {members.map((m) => (
             <button
               key={m.user.id}
               onClick={() => setAssigneeFilter((cur) => (cur === m.user.id ? null : m.user.id))}
               title={`Filtrar por ${displayName(m.user)}`}
-              className={`rounded-full transition ${
-                assigneeFilter === m.user.id ? 'ring-2 ring-indigo-500' : 'opacity-60 hover:opacity-100'
-              }`}
+              className={`rounded-full transition ${assigneeFilter === m.user.id ? 'ring-2 ring-brand-violet' : 'opacity-60 hover:opacity-100'}`}
             >
-              <Avatar user={m.user} size={8} />
+              <Avatar user={m.user} size={6} />
             </button>
           ))}
-          {assigneeFilter && (
-            <button onClick={() => setAssigneeFilter(null)} className="ml-1 text-xs text-zinc-500 hover:text-zinc-200">
-              limpar
-            </button>
-          )}
         </div>
 
-        {/* Filtro por prioridade */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
           {PRIORITY_ORDER.map((p) => (
-            <button
-              key={p}
-              onClick={() => setPriorityFilter((cur) => (cur === p ? null : p))}
-              title={`Prioridade ${PRIORITY_META[p].label}`}
-              className={`flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] transition ${
-                priorityFilter === p ? PRIORITY_META[p].chip : 'border-zinc-800 text-zinc-500 hover:border-zinc-600'
-              }`}
-            >
-              <span className={`h-1.5 w-1.5 rounded-full ${PRIORITY_META[p].dot}`} />
-              {PRIORITY_META[p].label}
+            <button key={p} onClick={() => setPriorityFilter((cur) => (cur === p ? null : p))} title={`Prioridade ${PRIORITY_META[p].label}`} className="cursor-pointer">
+              <PriorityChip p={p} active={priorityFilter === p} />
             </button>
           ))}
         </div>
 
-        {/* Filtro por etiqueta (só as em uso) */}
         {availableLabels.length > 0 && (
           <select
-            value={labelFilter ?? ''}
-            onChange={(e) => setLabelFilter(e.target.value || null)}
-            className="rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-300 outline-none focus:border-indigo-500"
+            value={labelFilter ?? ''} onChange={(e) => setLabelFilter(e.target.value || null)}
+            className="rounded-[10px] border border-line-2 bg-base-2 px-2.5 py-2 text-xs text-soft outline-none focus:border-brand-violet"
           >
             <option value="">Todas as etiquetas</option>
-            {availableLabels.map((l) => (
-              <option key={l.id} value={l.id}>{l.name}</option>
-            ))}
+            {availableLabels.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
         )}
 
-        <span className="ml-auto flex items-center gap-1.5 text-xs text-zinc-600">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" />
+        <span className="ml-auto flex items-center gap-2 text-[11.5px] text-faint">
+          <span className="pulse-dot h-[7px] w-[7px] rounded-full bg-green-500" />
           {workspace?.githubRepoFullName ? 'sincronizando com o GitHub' : 'atualização automática'}
         </span>
       </div>
 
       {error && (
-        <p
-          className="mb-4 cursor-pointer rounded-lg bg-red-950 px-4 py-2 text-sm text-red-300"
-          onClick={() => setError(null)}
-          title="Clique para dispensar"
-        >
+        <p className="mb-4 cursor-pointer rounded-[10px] border border-red-500/25 bg-red-500/10 px-4 py-2.5 text-sm text-red-300" onClick={() => setError(null)}>
           {error}
         </p>
       )}
 
       {/* ===== Form nova task ===== */}
       {showForm && (
-        <form onSubmit={createTask} className="mb-6 space-y-3 rounded-xl border border-zinc-800 bg-zinc-900 p-5">
+        <form onSubmit={createTask} className="dialog-in mb-4 flex flex-col gap-3 rounded-2xl border border-line bg-panel p-4.5" style={{ padding: 18 }}>
           <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder={
-              workspace?.githubRepoFullName
-                ? 'Título da task (vira o título da Issue no GitHub)'
-                : 'Título da task'
-            }
-            required
-            maxLength={200}
-            autoFocus
-            className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+            value={title} onChange={(e) => setTitle(e.target.value)}
+            placeholder={workspace?.githubRepoFullName ? 'Título da task (vira o título da Issue no GitHub)' : 'Título da task'}
+            required maxLength={200} autoFocus className={field}
           />
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Descrição (opcional)"
-            rows={3}
-            className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500"
-          />
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descrição (opcional)" rows={2} className={`${field} resize-y`} />
           <div className="flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 text-xs text-zinc-500">
+            <label className="flex items-center gap-2 text-xs text-soft-2">
               Prioridade
-              <select
-                value={priority}
-                onChange={(e) => setPriority(e.target.value as TaskPriority)}
-                className="rounded-lg border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm text-zinc-200"
-              >
-                {PRIORITY_ORDER.map((p) => (
-                  <option key={p} value={p}>{PRIORITY_META[p].label}</option>
-                ))}
+              <select value={priority} onChange={(e) => setPriority(e.target.value as TaskPriority)} className="rounded-lg border border-line-input bg-base-2 px-2.5 py-1.5 text-sm text-ink">
+                {PRIORITY_ORDER.map((p) => <option key={p} value={p}>{PRIORITY_META[p].label}</option>)}
               </select>
             </label>
-            <button
-              disabled={saving}
-              className="ml-auto rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium hover:bg-indigo-500 disabled:opacity-50"
-            >
+            <button disabled={saving} className="btn-brand ml-auto rounded-[10px] px-5 py-2 text-[13.5px]">
               {saving ? 'Criando…' : 'Criar task'}
             </button>
           </div>
         </form>
       )}
 
-      {/* ===== Colunas =====
-          Mobile: rolagem horizontal com colunas de largura fixa (padrão kanban
-          em telas pequenas). lg+: grid de 5 colunas que preenche a largura. */}
-      <div className="flex gap-3 overflow-x-auto pb-3 lg:grid lg:grid-cols-5 lg:overflow-visible">
-        {COLUMNS.map((col) => {
+      {/* ===== Colunas ===== */}
+      <div className="flex gap-3.5 overflow-x-auto pb-3">
+        {COLUMN_META.map((col) => {
           const colTasks = visibleTasks.filter((t) => t.status === col.status);
           return (
             <div
@@ -440,27 +361,20 @@ export function Board() {
                 const taskId = e.dataTransfer.getData('taskId');
                 if (taskId) void moveTask(taskId, col.status);
               }}
-              className={`flex min-h-[60vh] w-72 shrink-0 flex-col rounded-xl bg-zinc-900/50 p-2.5 ring-1 ring-inset transition lg:w-auto ${
-                dragOver === col.status ? 'bg-zinc-800/80 ring-indigo-600' : 'ring-zinc-800/60'
+              className={`flex min-h-[64vh] flex-[0_0_272px] flex-col rounded-2xl border bg-column p-3 transition lg:flex-1 lg:min-w-0 ${
+                dragOver === col.status ? 'border-brand-violet' : 'border-line'
               }`}
             >
-              <h2 className="mb-3 flex items-center gap-2 px-1 text-xs font-semibold uppercase tracking-wide text-zinc-400">
-                <span className={`h-2 w-2 rounded-full ${col.dot}`} />
+              <h2 className="mx-1 mb-3 mt-0.5 flex items-center gap-2 text-[11.5px] font-bold uppercase tracking-[.06em] text-soft-2">
+                <span className="h-2 w-2 rounded-full" style={{ background: col.dot }} />
                 {col.label}
-                <span className="ml-auto rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] text-zinc-400">
-                  {colTasks.length}
-                </span>
+                <span className="ml-auto rounded-full bg-raised px-2 py-0.5 text-[10px] text-soft-2">{colTasks.length}</span>
               </h2>
 
-              <div className="flex-1 space-y-2">
-                {!loaded && (
-                  <>
-                    <TaskCardSkeleton />
-                    <TaskCardSkeleton />
-                  </>
-                )}
+              <div className="flex flex-1 flex-col gap-2">
+                {!loaded && (<><TaskCardSkeleton /><TaskCardSkeleton /></>)}
                 {loaded && colTasks.length === 0 && (
-                  <p className="px-1 pt-6 text-center text-xs text-zinc-700">Nada por aqui</p>
+                  <p className="pt-6 text-center text-[11.5px] text-faint-3">Nada por aqui</p>
                 )}
                 {colTasks.map((task, i) => (
                   <div
@@ -470,69 +384,51 @@ export function Board() {
                     onDragEnd={() => setDraggingId(null)}
                     onClick={() => setOpenTask((cur) => (cur === task.id ? null : task.id))}
                     style={{ viewTransitionName: `task-${task.id}`, '--i': i } as React.CSSProperties}
-                    className={`group card-in cursor-grab rounded-lg border border-zinc-800 bg-zinc-950 p-3 text-sm shadow-md transition hover:-translate-y-0.5 hover:border-zinc-600 active:cursor-grabbing ${
+                    className={`group card-in cursor-grab rounded-xl border border-line bg-panel p-3 transition hover:border-[#34313f] active:cursor-grabbing ${
                       draggingId === task.id ? 'scale-[0.98] opacity-40' : ''
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <p className="font-medium leading-snug">{task.title}</p>
+                      <p className="text-[13.5px] font-semibold leading-[1.4] text-ink">{task.title}</p>
                       <button
                         onClick={(e) => { e.stopPropagation(); setEditTask(task); }}
                         title="Editar task"
-                        className="shrink-0 text-zinc-600 hover:text-zinc-200 sm:hidden sm:group-hover:block"
+                        className="shrink-0 text-faint-3 transition hover:text-soft"
                       >
-                        ✎
+                        <IconPencil size={13} />
                       </button>
                     </div>
 
-                    {/* Badges: prioridade, etiquetas, prazo, progresso do checklist */}
-                    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px]">
-                      <span
-                        title={`Prioridade ${PRIORITY_META[task.priority].label}`}
-                        className={`flex items-center gap-1 rounded-full border px-1.5 py-0.5 ${PRIORITY_META[task.priority].chip}`}
-                      >
-                        <span className={`h-1.5 w-1.5 rounded-full ${PRIORITY_META[task.priority].dot}`} />
-                        {PRIORITY_META[task.priority].label}
-                      </span>
+                    <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                      <PriorityChip p={task.priority} />
                       {(task.labels ?? []).map((tl) => (
-                        <span
-                          key={tl.labelId}
-                          style={{ backgroundColor: tl.label.color, color: textOn(tl.label.color) }}
-                          className="rounded-full px-1.5 py-0.5 font-medium"
-                        >
+                        <span key={tl.labelId} className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: tl.label.color, color: textOn(tl.label.color) }}>
                           {tl.label.name}
                         </span>
                       ))}
-                      {task.dueDate && dueState(task.dueDate) !== 'none' && (
-                        <span className={`rounded-full px-1.5 py-0.5 ${DUE_CLASS[dueState(task.dueDate) as 'overdue' | 'soon' | 'later']}`}>
-                          🗓 {formatDue(task.dueDate)}
-                        </span>
-                      )}
+                      {task.dueDate && dueState(task.dueDate) !== 'none' && (() => {
+                        const s = DUE_STYLE[dueState(task.dueDate) as 'overdue' | 'soon' | 'later'];
+                        return <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: s.bg, color: s.color }}>🗓 {formatDue(task.dueDate)}</span>;
+                      })()}
                       {task.checklist && task.checklist.length > 0 && (
-                        <span className="rounded-full bg-zinc-800 px-1.5 py-0.5 text-zinc-400">
+                        <span className="rounded-full bg-raised px-2 py-0.5 text-[10px] font-semibold text-soft-2">
                           ✓ {task.checklist.filter((i) => i.done).length}/{task.checklist.length}
                         </span>
                       )}
                     </div>
 
-                    <div className="mt-2 flex items-center gap-3 text-xs">
+                    <div className="mt-2.5 flex items-center gap-3">
                       {task.githubIssueNumber != null && workspace?.githubRepoFullName && (
                         <a
                           href={`https://github.com/${workspace.githubRepoFullName}/issues/${task.githubIssueNumber}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-zinc-500 hover:text-indigo-400"
+                          target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
+                          className="font-mono text-[11px] text-faint transition hover:text-brand-violet"
                         >
                           #{task.githubIssueNumber}
                         </a>
                       )}
                       {task.githubPrNumber != null && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setCodeTask(task.id); }}
-                          title={`Ver diff do PR #${task.githubPrNumber}`}
-                          className="font-mono text-zinc-500 hover:text-green-400"
-                        >
+                        <button onClick={(e) => { e.stopPropagation(); setCodeTask(task.id); }} title={`Ver diff do PR #${task.githubPrNumber}`} className="font-mono text-[11px] text-faint transition hover:text-green-400">
                           {'</>'} PR #{task.githubPrNumber}
                         </button>
                       )}
@@ -540,63 +436,35 @@ export function Board() {
                     </div>
 
                     {openTask === task.id && (
-                      <div className="mt-3 space-y-3 border-t border-zinc-800 pt-3" onClick={(e) => e.stopPropagation()}>
-                        {task.description && (
-                          <p className="whitespace-pre-wrap text-xs text-zinc-400">{task.description}</p>
-                        )}
+                      <div className="mt-3 flex flex-col gap-3 border-t border-line pt-3" onClick={(e) => e.stopPropagation()}>
+                        {task.description && <p className="whitespace-pre-wrap text-xs leading-relaxed text-soft-2">{task.description}</p>}
                         <div className="grid grid-cols-2 gap-2">
-                          <label className="block text-xs text-zinc-500">
+                          <label className="text-[10.5px] text-faint">
                             Coluna
-                            <select
-                              value={task.status}
-                              onChange={(e) => void moveTask(task.id, e.target.value as TaskStatus)}
-                              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-200"
-                            >
-                              {COLUMNS.map((c) => (
-                                <option key={c.status} value={c.status}>{c.label}</option>
-                              ))}
+                            <select value={task.status} onChange={(e) => void moveTask(task.id, e.target.value as TaskStatus)} className="mt-1 block w-full rounded-lg border border-line-input bg-base-2 px-2 py-1.5 text-[11.5px] text-ink-2">
+                              {COLUMN_META.map((c) => <option key={c.status} value={c.status}>{c.label}</option>)}
                             </select>
                           </label>
-                          <label className="block text-xs text-zinc-500">
+                          <label className="text-[10.5px] text-faint">
                             Responsável
-                            <select
-                              value={task.assigneeId ?? ''}
-                              onChange={(e) => void assignTask(task.id, e.target.value || null)}
-                              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-200"
-                            >
+                            <select value={task.assigneeId ?? ''} onChange={(e) => void assignTask(task.id, e.target.value || null)} className="mt-1 block w-full rounded-lg border border-line-input bg-base-2 px-2 py-1.5 text-[11.5px] text-ink-2">
                               <option value="">— ninguém —</option>
-                              {members.map((m) => (
-                                <option key={m.user.id} value={m.user.id}>
-                                  {displayName(m.user)}
-                                </option>
-                              ))}
+                              {members.map((m) => <option key={m.user.id} value={m.user.id}>{displayName(m.user)}</option>)}
                             </select>
                           </label>
                         </div>
                         {workspaceId && (
-                          <TaskChecklist
-                            workspaceId={workspaceId}
-                            taskId={task.id}
-                            items={task.checklist ?? []}
-                            onChange={(items) => setChecklist(task.id, items)}
-                          />
+                          <TaskChecklist workspaceId={workspaceId} taskId={task.id} items={task.checklist ?? []} onChange={(items) => setChecklist(task.id, items)} />
                         )}
-                        {workspaceId && (
-                          <TaskComments workspaceId={workspaceId} taskId={task.id} members={members} />
-                        )}
+                        {workspaceId && <TaskComments workspaceId={workspaceId} taskId={task.id} members={members} />}
                       </div>
                     )}
                   </div>
                 ))}
               </div>
 
-              {/* Coluna concluída: alternar entre "recentes" e "todas". Escondido
-                  durante busca (a busca já traz tudo que casa). */}
               {col.status === 'DONE' && !search.trim() && (
-                <button
-                  onClick={() => setShowAllDone((v) => !v)}
-                  className="mt-2 rounded-lg border border-zinc-800 px-2 py-1.5 text-[11px] text-zinc-500 hover:border-zinc-600 hover:text-zinc-300"
-                >
+                <button onClick={() => setShowAllDone((v) => !v)} className="mt-2 rounded-[9px] border border-line px-2 py-1.5 text-[11px] text-faint transition hover:border-faint hover:text-soft">
                   {showAllDone ? 'Mostrar só as recentes' : 'Mostrar todas as concluídas'}
                 </button>
               )}
@@ -607,38 +475,24 @@ export function Board() {
 
       {/* ===== Painéis e modais ===== */}
       {showActivity && workspaceId && (
-        <ActivityPanel
-          workspaceId={workspaceId}
-          hasRepo={!!workspace?.githubRepoFullName}
-          onClose={() => setShowActivity(false)}
-        />
+        <ActivityPanel workspaceId={workspaceId} hasRepo={!!workspace?.githubRepoFullName} onClose={() => setShowActivity(false)} />
       )}
       {codeTask && workspaceId && (
         <CodeModal workspaceId={workspaceId} taskId={codeTask} onClose={() => setCodeTask(null)} />
       )}
       {editTask && workspaceId && (
         <TaskEditModal
-          workspaceId={workspaceId}
-          task={editTask}
+          workspaceId={workspaceId} task={editTask}
           onSaved={(t) => setTasks((ts) => ts.map((x) => (x.id === t.id ? t : x)))}
           onDeleted={(id) => setTasks((ts) => ts.filter((x) => x.id !== id))}
           onClose={() => setEditTask(null)}
         />
       )}
       {showMembers && workspaceId && (
-        <MembersPanel
-          workspaceId={workspaceId}
-          members={members}
-          onChange={setMembers}
-          onClose={() => setShowMembers(false)}
-        />
+        <MembersPanel workspaceId={workspaceId} members={members} onChange={setMembers} onClose={() => setShowMembers(false)} />
       )}
       {showLabels && workspaceId && (
-        <LabelsPanel
-          workspaceId={workspaceId}
-          onChanged={() => void refresh()}
-          onClose={() => setShowLabels(false)}
-        />
+        <LabelsPanel workspaceId={workspaceId} onChanged={() => void refresh()} onClose={() => setShowLabels(false)} />
       )}
     </div>
   );

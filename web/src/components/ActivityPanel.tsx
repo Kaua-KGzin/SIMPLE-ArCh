@@ -87,17 +87,17 @@ export function ActivityPanel({
   }, [tab, github, hasRepo, workspaceId]);
 
   return (
-    <aside className="fixed inset-y-0 right-0 z-10 w-full max-w-sm overflow-y-auto border-l border-zinc-800 bg-zinc-900 p-5 shadow-2xl">
+    <aside className="panel-in fixed inset-y-0 right-0 z-20 w-full max-w-sm overflow-y-auto border-l border-line bg-panel p-5 shadow-2xl">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="font-semibold">Atividade</h2>
-        <button onClick={onClose} className="text-zinc-500 hover:text-zinc-200">✕</button>
+        <h2 className="font-display text-base font-semibold">Atividade</h2>
+        <button onClick={onClose} className="text-faint transition hover:text-soft">✕</button>
       </div>
 
-      <div className="mb-4 flex gap-1 rounded-lg bg-zinc-950 p-1 text-sm">
+      <div className="mb-4 flex gap-1 rounded-[10px] bg-base-2 p-1 text-sm">
         <button
           onClick={() => setTab('team')}
-          className={`flex-1 rounded-md px-3 py-1.5 transition ${
-            tab === 'team' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'
+          className={`flex-1 rounded-md px-3 py-1.5 font-semibold transition ${
+            tab === 'team' ? 'bg-raised text-ink' : 'text-faint hover:text-soft'
           }`}
         >
           Equipe
@@ -105,8 +105,8 @@ export function ActivityPanel({
         {hasRepo && (
           <button
             onClick={() => setTab('github')}
-            className={`flex-1 rounded-md px-3 py-1.5 transition ${
-              tab === 'github' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'
+            className={`flex-1 rounded-md px-3 py-1.5 font-semibold transition ${
+              tab === 'github' ? 'bg-raised text-ink' : 'text-faint hover:text-soft'
             }`}
           >
             GitHub
@@ -115,34 +115,34 @@ export function ActivityPanel({
       </div>
 
       {error && (
-        <p className="mb-3 cursor-pointer rounded-lg bg-red-950 px-3 py-2 text-xs text-red-300" onClick={() => setError(null)}>
+        <p className="mb-3 cursor-pointer rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2 text-xs text-red-300" onClick={() => setError(null)}>
           {error}
         </p>
       )}
 
       {tab === 'team' && (
         <>
-          {feed === null && <p className="text-sm text-zinc-500">Carregando…</p>}
+          {feed === null && <p className="text-sm text-faint">Carregando…</p>}
           {feed?.length === 0 && (
-            <p className="text-sm text-zinc-600">Nada por aqui ainda — crie uma task ou comente em alguma.</p>
+            <p className="text-sm text-faint">Nada por aqui ainda — crie uma task ou comente em alguma.</p>
           )}
           <ul className="space-y-2">
             {feed?.map((ev) => (
               <li
                 key={ev.id}
-                className="flex items-start gap-2 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm"
+                className="flex items-start gap-2.5 rounded-xl border border-line bg-base-2 px-3 py-2.5 text-sm"
               >
-                <span className="mt-0.5 w-5 shrink-0 text-center text-xs" aria-hidden>
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-raised text-[10px]" aria-hidden>
                   {EVENT_ICON[ev.type] ?? '•'}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-xs leading-relaxed text-zinc-300">
+                  <span className="block text-xs leading-relaxed text-soft">
                     {ev.actor ? (
-                      <span className="font-medium text-zinc-100">{displayName(ev.actor)} </span>
+                      <span className="font-semibold text-ink">{displayName(ev.actor)} </span>
                     ) : null}
                     {ev.summary}
                   </span>
-                  <span className="text-[10px] text-zinc-600">{timeAgo(ev.createdAt)}</span>
+                  <span className="text-[10px] text-faint-2">{timeAgo(ev.createdAt)}</span>
                 </span>
                 {ev.actor && <Avatar user={ev.actor} size={5} />}
               </li>
@@ -153,11 +153,11 @@ export function ActivityPanel({
 
       {tab === 'github' && (
         <>
-          {!github && !error && <p className="text-sm text-zinc-500">Carregando…</p>}
+          {!github && !error && <p className="text-sm text-faint">Carregando…</p>}
           {github && (
             <>
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Pull Requests</h3>
-              {github.pulls.length === 0 && <p className="mb-4 text-sm text-zinc-600">Nenhum PR ainda.</p>}
+              <h3 className="mb-2 text-[10.5px] font-bold uppercase tracking-[.05em] text-faint">Pull Requests</h3>
+              {github.pulls.length === 0 && <p className="mb-4 text-sm text-faint">Nenhum PR ainda.</p>}
               <ul className="mb-6 space-y-2">
                 {github.pulls.map((p) => (
                   <li key={p.number}>
@@ -165,19 +165,19 @@ export function ActivityPanel({
                       href={p.url}
                       target="_blank"
                       rel="noreferrer"
-                      className="flex items-start gap-2 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm hover:border-zinc-600"
+                      className="flex items-start gap-2 rounded-xl border border-line bg-base-2 px-3 py-2.5 text-sm transition hover:border-faint"
                     >
-                      <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${PR_DOT[p.state] ?? 'bg-zinc-500'}`} />
+                      <span className={`mt-1.5 h-[7px] w-[7px] shrink-0 rounded-full ${PR_DOT[p.state] ?? 'bg-zinc-500'}`} />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate">#{p.number} {p.title}</span>
-                        <span className="text-xs text-zinc-500">{p.author} · {timeAgo(p.date)}</span>
+                        <span className="block truncate text-ink-2">#{p.number} {p.title}</span>
+                        <span className="text-[10.5px] text-faint">{p.author} · {timeAgo(p.date)}</span>
                       </span>
                     </a>
                   </li>
                 ))}
               </ul>
 
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Commits</h3>
+              <h3 className="mb-2 text-[10.5px] font-bold uppercase tracking-[.05em] text-faint">Commits</h3>
               <ul className="space-y-2">
                 {github.commits.map((c) => (
                   <li key={c.sha}>
@@ -185,13 +185,13 @@ export function ActivityPanel({
                       href={c.url}
                       target="_blank"
                       rel="noreferrer"
-                      className="flex items-start gap-2 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm hover:border-zinc-600"
+                      className="flex items-start gap-2 rounded-xl border border-line bg-base-2 px-3 py-2.5 text-sm transition hover:border-faint"
                     >
                       {c.avatarUrl && <img src={c.avatarUrl} className="mt-0.5 h-5 w-5 rounded-full" alt="" />}
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate">{c.message}</span>
-                        <span className="font-mono text-xs text-zinc-500">{c.sha}</span>
-                        <span className="text-xs text-zinc-500"> · {c.author} · {timeAgo(c.date)}</span>
+                        <span className="block truncate text-ink-2">{c.message}</span>
+                        <span className="font-mono text-[10.5px] text-faint">{c.sha}</span>
+                        <span className="text-[10.5px] text-faint"> · {c.author} · {timeAgo(c.date)}</span>
                       </span>
                     </a>
                   </li>

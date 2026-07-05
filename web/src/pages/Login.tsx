@@ -2,12 +2,12 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_URL, api } from '../lib/api';
 import { auth } from '../lib/auth';
+import { AppBackground } from '../components/AppBackground';
+import { IconZap, IconNodes, IconCalendar, IconGithub, IconSpinner } from '../components/icons';
 
 /**
- * Tela de login. Duas formas de entrar, independentes:
- *  - E-mail/senha: nossa conta local, sem depender do GitHub.
- *  - GitHub: redireciona pro fluxo OAuth (necessário só se quiser
- *    sincronizar tasks com Issues de um repositório).
+ * Login em duas colunas: painel de marca (esquerda) + formulário (direita).
+ * Duas formas de entrar, independentes — e-mail/senha ou GitHub OAuth.
  */
 export function Login() {
   const navigate = useNavigate();
@@ -34,95 +34,95 @@ export function Login() {
       navigate('/', { replace: true });
     } catch (e) {
       setError((e as Error).message);
-    } finally {
       setBusy(false);
     }
   }
 
+  const tab = (active: boolean) =>
+    `flex-1 rounded-[10px] py-2.5 text-sm font-bold transition ${
+      active ? 'bg-[#1a1a24] text-ink' : 'text-faint hover:text-soft'
+    }`;
+  const field =
+    'w-full rounded-[10px] border border-line-input bg-base-2 px-3.5 py-2.5 text-sm text-ink outline-none transition focus:border-brand-violet';
+
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <div className="w-full max-w-sm space-y-8 text-center">
-        <div className="flex flex-col items-center">
-          <img
-            src="/icon-512.png"
-            alt="SIMPLE ArCh"
-            width={80}
-            height={80}
-            className="rounded-2xl shadow-2xl brand-glow"
-          />
-          <h1 className="mt-5 brand-text text-4xl font-bold tracking-tight">SIMPLE ArCh</h1>
-          <p className="mt-2 text-zinc-400">
-            Gerencie projetos em equipe, com ou sem GitHub.
+    <div className="relative flex min-h-screen flex-wrap overflow-hidden">
+      <AppBackground />
+
+      {/* ===== Painel de marca ===== */}
+      <div className="relative z-10 flex min-w-[340px] flex-1 flex-col justify-between gap-12 border-r border-[#1a1a22] p-8 sm:p-14">
+        <div className="flex items-center gap-3">
+          <img src="/icon-192.png" width={36} height={36} alt="" className="rounded-[9px] brand-glow" />
+          <span className="brand-text font-display text-xl font-bold tracking-tight">SIMPLE ArCh</span>
+        </div>
+
+        <div className="max-w-[460px]">
+          <p className="mb-4 font-mono text-xs uppercase tracking-[.14em] text-brand-violet">Board · Issues · Tempo real</p>
+          <h1 className="mb-5 font-display text-[clamp(2rem,5vw,2.9rem)] font-semibold leading-[1.08] tracking-tight text-ink text-balance">
+            Onde o board encontra o commit.
+          </h1>
+          <p className="mb-9 text-base leading-relaxed text-soft-2">
+            Tasks e Issues do GitHub sincronizam nos dois sentidos. PRs movem o trabalho sozinhos.
+            Tudo em tempo real — com ou sem GitHub conectado.
           </p>
+          <ul className="flex flex-col gap-4">
+            {[
+              { icon: <IconZap size={16} className="text-brand-violet" />, text: 'Board, comentários e notificações atualizam ao vivo' },
+              { icon: <IconNodes size={16} className="text-brand-blue" />, text: 'Criar uma task abre a Issue; mergear conclui a task' },
+              { icon: <IconCalendar size={16} className="text-brand-magenta" />, text: 'Funciona 100% sem GitHub — a integração é opcional' },
+            ].map((f, i) => (
+              <li key={i} className="flex items-center gap-3.5">
+                <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px] border border-line-2 bg-[#141420]">
+                  {f.icon}
+                </span>
+                <span className="text-sm text-soft">{f.text}</span>
+              </li>
+            ))}
+          </ul>
         </div>
 
-        <form onSubmit={submit} className="space-y-3 text-left">
-          {error && <p className="rounded-lg bg-red-950 px-3 py-2 text-sm text-red-300">{error}</p>}
+        <p className="font-mono text-[11px] text-faint-3">&lt;/&gt; simple-arch · dev collaboration</p>
+      </div>
 
-          {mode === 'register' && (
+      {/* ===== Painel do formulário ===== */}
+      <div className="relative z-10 flex min-w-[320px] flex-1 items-center justify-center p-6 sm:p-12">
+        <div className="dialog-in w-full max-w-[380px] rounded-[20px] border border-line bg-panel p-3.5 shadow-2xl">
+          <div className="mb-5 flex gap-1 rounded-[14px] bg-base-2 p-1">
+            <button onClick={() => { setMode('login'); setError(null); }} className={tab(mode === 'login')}>Entrar</button>
+            <button onClick={() => { setMode('register'); setError(null); }} className={tab(mode === 'register')}>Criar conta</button>
+          </div>
+
+          <form onSubmit={submit} className="flex flex-col gap-2.5 px-4 pb-5">
+            {error && (
+              <p className="rounded-[10px] border border-red-500/25 bg-red-500/10 px-3 py-2.5 text-[13px] text-red-300">{error}</p>
+            )}
+            {mode === 'register' && (
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome (opcional)" maxLength={100} className={field} />
+            )}
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="E-mail" required maxLength={255} className={field} />
             <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Nome (opcional)"
-              maxLength={100}
-              className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+              type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+              placeholder="Senha" required minLength={mode === 'register' ? 8 : undefined} maxLength={72}
+              autoComplete={mode === 'login' ? 'current-password' : 'new-password'} className={field}
             />
-          )}
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="E-mail"
-            required
-            maxLength={255}
-            className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500"
-          />
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Senha"
-            required
-            minLength={mode === 'register' ? 8 : undefined}
-            maxLength={72}
-            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-            className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500"
-          />
 
-          <button
-            disabled={busy}
-            className="brand-gradient brand-gradient-hover brand-glow w-full rounded-lg px-5 py-2.5 text-sm font-medium text-white transition disabled:opacity-50"
-          >
-            {busy ? 'Aguarde…' : mode === 'login' ? 'Entrar' : 'Criar conta'}
-          </button>
+            <button disabled={busy} className="btn-brand mt-1 flex items-center justify-center gap-2 rounded-[10px] py-3 text-sm">
+              {busy && <IconSpinner size={15} className="spin" />}
+              {busy ? 'Aguarde…' : mode === 'login' ? 'Entrar' : 'Criar conta'}
+            </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              setMode(mode === 'login' ? 'register' : 'login');
-              setError(null);
-            }}
-            className="w-full text-center text-xs text-zinc-500 hover:text-zinc-300"
-          >
-            {mode === 'login' ? 'Não tem conta? Criar uma' : 'Já tem conta? Entrar'}
-          </button>
-        </form>
+            <div className="my-3 flex items-center gap-3 text-[11px] text-faint-3">
+              <span className="h-px flex-1 bg-line" />ou<span className="h-px flex-1 bg-line" />
+            </div>
 
-        <div className="flex items-center gap-3 text-xs text-zinc-600">
-          <div className="h-px flex-1 bg-zinc-800" />
-          ou
-          <div className="h-px flex-1 bg-zinc-800" />
+            <a
+              href={`${API_URL}/auth/github/login`}
+              className="flex items-center justify-center gap-2.5 rounded-[10px] border border-line-input bg-base-2 py-2.5 text-sm font-semibold text-ink-2 transition hover:border-faint"
+            >
+              <IconGithub size={17} /> Entrar com GitHub
+            </a>
+          </form>
         </div>
-
-        <a
-          href={`${API_URL}/auth/github/login`}
-          className="inline-flex items-center gap-3 rounded-lg bg-zinc-100 px-6 py-3 font-medium text-zinc-900 transition hover:bg-white"
-        >
-          <svg viewBox="0 0 16 16" className="h-5 w-5" fill="currentColor" aria-hidden>
-            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z" />
-          </svg>
-          Entrar com GitHub
-        </a>
       </div>
     </div>
   );
