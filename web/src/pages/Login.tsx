@@ -42,8 +42,15 @@ export function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
       <div className="w-full max-w-sm space-y-8 text-center">
-        <div>
-          <h1 className="text-4xl font-bold tracking-tight">SIMPLE ArCh</h1>
+        <div className="flex flex-col items-center">
+          <img
+            src="/icon-512.png"
+            alt="SIMPLE ArCh"
+            width={80}
+            height={80}
+            className="rounded-2xl shadow-2xl brand-glow"
+          />
+          <h1 className="mt-5 brand-text text-4xl font-bold tracking-tight">SIMPLE ArCh</h1>
           <p className="mt-2 text-zinc-400">
             Gerencie projetos em equipe, com ou sem GitHub.
           </p>
@@ -84,7 +91,7 @@ export function Login() {
 
           <button
             disabled={busy}
-            className="w-full rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium hover:bg-indigo-500 disabled:opacity-50"
+            className="brand-gradient brand-gradient-hover brand-glow w-full rounded-lg px-5 py-2.5 text-sm font-medium text-white transition disabled:opacity-50"
           >
             {busy ? 'Aguarde…' : mode === 'login' ? 'Entrar' : 'Criar conta'}
           </button>

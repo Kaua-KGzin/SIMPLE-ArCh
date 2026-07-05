@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api';
+import { confirmDialog } from '../lib/confirm';
+import { toast } from '../lib/toast';
 import { PRIORITY_ORDER, PRIORITY_META, textOn } from '../lib/task-meta';
 import type { Label, Task, TaskPriority } from '../types';
 
@@ -80,10 +82,19 @@ export function TaskEditModal({
   }
 
   async function remove() {
-    if (!confirm(`Apagar a task "${task.title}"? A Issue no GitHub será fechada.`)) return;
+    const ok = await confirmDialog({
+      title: `Apagar a task "${task.title}"?`,
+      message: task.githubIssueNumber != null
+        ? `A Issue #${task.githubIssueNumber} no GitHub será fechada.`
+        : 'Esta ação não pode ser desfeita.',
+      confirmLabel: 'Apagar task',
+      danger: true,
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       await api(`/workspaces/${workspaceId}/tasks/${task.id}`, { method: 'DELETE' });
+      toast.success('Task apagada.');
       onDeleted(task.id);
       onClose();
     } catch (e) {

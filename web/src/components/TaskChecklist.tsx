@@ -21,6 +21,7 @@ export function TaskChecklist({
 }) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
+  const [justChecked, setJustChecked] = useState<string | null>(null);
   const base = `/workspaces/${workspaceId}/tasks/${taskId}/checklist`;
 
   const done = items.filter((i) => i.done).length;
@@ -42,6 +43,10 @@ export function TaskChecklist({
   }
 
   async function toggle(item: ChecklistItem) {
+    if (!item.done) {
+      setJustChecked(item.id);
+      window.setTimeout(() => setJustChecked((cur) => (cur === item.id ? null : cur)), 320);
+    }
     onChange(items.map((i) => (i.id === item.id ? { ...i, done: !i.done } : i)));
     try {
       await api(`${base}/${item.id}`, {
@@ -81,7 +86,7 @@ export function TaskChecklist({
               type="checkbox"
               checked={item.done}
               onChange={() => void toggle(item)}
-              className="h-3.5 w-3.5 shrink-0 accent-green-500"
+              className={`h-3.5 w-3.5 shrink-0 accent-green-500 ${justChecked === item.id ? 'check-pop' : ''}`}
             />
             <span className={`flex-1 ${item.done ? 'text-zinc-600 line-through' : 'text-zinc-300'}`}>
               {item.text}

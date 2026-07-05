@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api } from '../lib/api';
+import { confirmDialog } from '../lib/confirm';
 import { Avatar } from './Avatar';
 import { displayName, type Member, type MemberRole } from '../types';
 
@@ -48,7 +49,13 @@ export function MembersPanel({
   }
 
   async function remove(member: Member) {
-    if (!confirm(`Remover ${displayName(member.user)} do workspace?`)) return;
+    const ok = await confirmDialog({
+      title: `Remover ${displayName(member.user)}?`,
+      message: 'A pessoa perde o acesso a este workspace imediatamente.',
+      confirmLabel: 'Remover',
+      danger: true,
+    });
+    if (!ok) return;
     setError(null);
     try {
       await api(`/workspaces/${workspaceId}/members/${member.user.id}`, { method: 'DELETE' });
