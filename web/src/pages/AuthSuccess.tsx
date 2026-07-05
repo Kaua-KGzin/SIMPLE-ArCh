@@ -20,5 +20,5 @@ export function AuthSuccess() {
     }
   }, [params, navigate]);
 
-  return <div className="min-h-screen flex items-center justify-center text-zinc-400">Entrando…</div>;
+  return <div className="min-h-screen flex items-center justify-center text-soft-2">Entrando…</div>;
 }

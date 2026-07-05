@@ -66,13 +66,13 @@ export function MembersPanel({
   }
 
   return (
-    <aside className="fixed inset-y-0 right-0 z-10 w-full max-w-sm overflow-y-auto border-l border-zinc-800 bg-zinc-900 p-5 shadow-2xl">
+    <aside className="panel-in fixed inset-y-0 right-0 z-20 w-full max-w-sm overflow-y-auto border-l border-line bg-panel p-5 shadow-2xl">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="font-semibold">Equipe ({members.length})</h2>
-        <button onClick={onClose} className="text-zinc-500 hover:text-zinc-200">✕</button>
+        <h2 className="font-display text-base font-semibold">Equipe ({members.length})</h2>
+        <button onClick={onClose} className="text-faint transition hover:text-soft">✕</button>
       </div>
 
-      {error && <p className="mb-3 rounded-lg bg-red-950 px-3 py-2 text-xs text-red-300">{error}</p>}
+      {error && <p className="mb-3 rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2 text-xs text-red-300">{error}</p>}
 
       <form onSubmit={invite} className="mb-5 space-y-2">
         <input
@@ -80,25 +80,22 @@ export function MembersPanel({
           onChange={(e) => setLogin(e.target.value)}
           placeholder="E-mail ou login do GitHub"
           required
-          className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+          className="w-full rounded-[10px] border border-line-input bg-base-2 px-3 py-2 text-sm text-ink outline-none focus:border-brand-violet"
         />
         <div className="flex gap-2">
           <select
             value={role}
             onChange={(e) => setRole(e.target.value as MemberRole)}
-            className="flex-1 rounded-lg border border-zinc-700 bg-zinc-950 px-2 py-2 text-sm"
+            className="flex-1 rounded-[10px] border border-line-input bg-base-2 px-2 py-2 text-sm text-ink-2"
           >
             <option value="MEMBER">Membro</option>
             <option value="ADMIN">Admin</option>
           </select>
-          <button
-            disabled={saving}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium hover:bg-indigo-500 disabled:opacity-50"
-          >
+          <button disabled={saving} className="btn-brand rounded-[10px] px-4 py-2 text-sm">
             {saving ? '…' : 'Convidar'}
           </button>
         </div>
-        <p className="text-xs text-zinc-500">
+        <p className="text-xs text-faint-2">
           A pessoa precisa já ter conta na plataforma (e-mail/senha ou GitHub).
         </p>
       </form>
@@ -107,12 +104,12 @@ export function MembersPanel({
         {members.map((m) => (
           <li
             key={m.id}
-            className="flex items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2"
+            className="flex items-center gap-3 rounded-xl border border-line bg-base-2 px-3 py-2.5"
           >
             <Avatar user={m.user} size={8} />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{displayName(m.user)}</p>
-              <p className="text-xs text-zinc-500">
+              <p className="truncate text-sm font-semibold text-ink-2">{displayName(m.user)}</p>
+              <p className="text-xs text-faint">
                 {m.user.githubLogin ? `@${m.user.githubLogin} · ` : ''}{ROLE_LABEL[m.role]}
               </p>
             </div>
@@ -120,7 +117,7 @@ export function MembersPanel({
               <button
                 onClick={() => remove(m)}
                 title="Remover do workspace"
-                className="text-zinc-600 hover:text-red-400"
+                className="text-faint-3 transition hover:text-red-400"
               >
                 ✕
               </button>

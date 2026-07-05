@@ -19,10 +19,10 @@ function timeAgo(iso: string): string {
 function CommentBody({ body }: { body: string }) {
   const parts = body.split(/(@[\w.-]+)/g);
   return (
-    <p className="whitespace-pre-wrap break-words text-xs text-zinc-300">
+    <p className="whitespace-pre-wrap break-words text-[11.5px] leading-relaxed text-[#a3a1b0]">
       {parts.map((part, i) =>
         part.startsWith('@') ? (
-          <span key={i} className="rounded bg-indigo-950 px-1 font-medium text-indigo-300">
+          <span key={i} className="rounded bg-brand-violet/15 px-1 font-semibold text-brand-violet">
             {part}
           </span>
         ) : (
@@ -124,27 +124,27 @@ export function TaskComments({
 
   return (
     <div className="space-y-2">
-      <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+      <p className="text-[10.5px] font-bold uppercase tracking-[.05em] text-faint">
         Comentários {comments ? `(${comments.length})` : ''}
       </p>
 
-      {error && <p className="rounded bg-red-950 px-2 py-1 text-xs text-red-300">{error}</p>}
+      {error && <p className="rounded border border-red-500/25 bg-red-500/10 px-2 py-1 text-xs text-red-300">{error}</p>}
 
-      <div className="max-h-48 space-y-2 overflow-y-auto pr-1">
-        {comments === null && <p className="text-xs text-zinc-600">Carregando…</p>}
+      <div className="max-h-48 space-y-1.5 overflow-y-auto pr-1">
+        {comments === null && <p className="text-xs text-faint">Carregando…</p>}
         {comments?.length === 0 && (
-          <p className="text-xs text-zinc-600">Nenhum comentário ainda. Comece a conversa!</p>
+          <p className="text-xs text-faint">Nenhum comentário ainda. Comece a conversa!</p>
         )}
         {comments?.map((c) => (
-          <div key={c.id} className="group/comment rounded-lg bg-zinc-900 p-2">
+          <div key={c.id} className="group/comment rounded-lg bg-base-2 p-2">
             <div className="mb-1 flex items-center gap-2">
               <Avatar user={c.author} size={5} />
-              <span className="text-xs font-medium text-zinc-300">{displayName(c.author)}</span>
-              <span className="text-[10px] text-zinc-600">{timeAgo(c.createdAt)}</span>
+              <span className="text-[11px] font-semibold text-soft">{displayName(c.author)}</span>
+              <span className="text-[9.5px] text-faint-3">{timeAgo(c.createdAt)}</span>
               <button
                 onClick={() => void remove(c.id)}
                 title="Apagar comentário"
-                className="ml-auto hidden text-zinc-600 hover:text-red-400 group-hover/comment:block"
+                className="ml-auto hidden text-faint-3 hover:text-red-400 group-hover/comment:block"
               >
                 ✕
               </button>
@@ -168,7 +168,7 @@ export function TaskComments({
           placeholder="Comentar… (@ para mencionar, Enter envia)"
           rows={2}
           maxLength={2000}
-          className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-xs outline-none focus:border-indigo-500"
+          className="w-full resize-none rounded-lg border border-line-input bg-base-2 px-2 py-1.5 text-[11.5px] text-ink outline-none focus:border-brand-violet"
         />
         <div className="flex items-center gap-1">
           {members.slice(0, 6).map((m) => (
@@ -177,14 +177,14 @@ export function TaskComments({
               type="button"
               onClick={() => mention(m)}
               title={`Mencionar ${displayName(m.user)}`}
-              className="opacity-60 transition hover:opacity-100"
+              className="opacity-70 transition hover:opacity-100"
             >
               <Avatar user={m.user} size={5} />
             </button>
           ))}
           <button
             disabled={busy || !body.trim()}
-            className="ml-auto rounded-lg bg-indigo-600 px-3 py-1 text-xs font-medium hover:bg-indigo-500 disabled:opacity-40"
+            className="ml-auto rounded-[7px] bg-raised px-3 py-1.5 text-[11.5px] font-semibold text-soft transition hover:brightness-125 disabled:opacity-40"
           >
             {busy ? '…' : 'Enviar'}
           </button>

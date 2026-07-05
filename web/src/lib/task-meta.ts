@@ -1,26 +1,45 @@
-import type { TaskPriority } from '../types';
+import type { TaskPriority, TaskStatus } from '../types';
 
-/** Rótulo PT, cor do "dot" e classes de chip por prioridade. */
+/**
+ * Metadados de prioridade — cores em OKLCH (mais uniformes em tela dark).
+ * Média puxa para violeta (290) alinhando à marca; alta laranja, urgente vermelho.
+ */
 export const PRIORITY_META: Record<
   TaskPriority,
-  { label: string; dot: string; chip: string; order: number }
+  { label: string; color: string; bg: string; border: string; order: number }
 > = {
-  URGENT: { label: 'Urgente', dot: 'bg-red-500', chip: 'bg-red-950 text-red-300 border-red-900', order: 0 },
-  HIGH: { label: 'Alta', dot: 'bg-orange-500', chip: 'bg-orange-950 text-orange-300 border-orange-900', order: 1 },
-  MEDIUM: { label: 'Média', dot: 'bg-blue-500', chip: 'bg-blue-950 text-blue-300 border-blue-900', order: 2 },
-  LOW: { label: 'Baixa', dot: 'bg-zinc-500', chip: 'bg-zinc-800 text-zinc-300 border-zinc-700', order: 3 },
+  URGENT: { label: 'Urgente', color: 'oklch(72% 0.19 25)',  bg: 'oklch(27% 0.05 25)',   border: 'oklch(40% 0.09 25)',   order: 0 },
+  HIGH:   { label: 'Alta',    color: 'oklch(76% 0.15 55)',  bg: 'oklch(27% 0.045 55)',  border: 'oklch(40% 0.08 55)',   order: 1 },
+  MEDIUM: { label: 'Média',   color: 'oklch(76% 0.16 290)', bg: 'oklch(27% 0.05 290)',  border: 'oklch(40% 0.09 290)',  order: 2 },
+  LOW:    { label: 'Baixa',   color: 'oklch(66% 0.02 290)', bg: 'oklch(24% 0.01 290)',  border: 'oklch(34% 0.015 290)', order: 3 },
 };
 
 export const PRIORITY_ORDER: TaskPriority[] = ['URGENT', 'HIGH', 'MEDIUM', 'LOW'];
+
+/** Colunas do board com rótulo e cor do "dot" (OKLCH). */
+export const COLUMN_META: { status: TaskStatus; label: string; dot: string }[] = [
+  { status: 'BACKLOG',     label: 'Backlog',      dot: 'oklch(62% 0.02 290)' },
+  { status: 'TODO',        label: 'A Fazer',      dot: 'oklch(72% 0.15 250)' },
+  { status: 'IN_PROGRESS', label: 'Em Andamento', dot: 'oklch(80% 0.15 85)' },
+  { status: 'IN_REVIEW',   label: 'Em Revisão',   dot: 'oklch(72% 0.19 300)' },
+  { status: 'DONE',        label: 'Concluído',    dot: 'oklch(76% 0.14 155)' },
+];
 
 /** Estado do prazo relativo a agora — dirige a cor no card. */
 export function dueState(dueDate: string | null | undefined): 'none' | 'overdue' | 'soon' | 'later' {
   if (!dueDate) return 'none';
   const diffMs = new Date(dueDate).getTime() - Date.now();
   if (diffMs < 0) return 'overdue';
-  if (diffMs < 48 * 3600 * 1000) return 'soon'; // vence em até 2 dias
+  if (diffMs < 48 * 3600 * 1000) return 'soon';
   return 'later';
 }
+
+/** Cor (bg/texto) do badge de prazo por estado. */
+export const DUE_STYLE: Record<'overdue' | 'soon' | 'later', { bg: string; color: string }> = {
+  overdue: { bg: 'oklch(27% 0.05 25)',  color: 'oklch(72% 0.19 25)' },
+  soon:    { bg: 'oklch(27% 0.05 85)',  color: 'oklch(80% 0.15 85)' },
+  later:   { bg: '#191921',             color: '#8f8da0' },
+};
 
 /** "31/07", "hoje", "amanhã", "ontem" — formato curto e humano do prazo. */
 export function formatDue(dueDate: string): string {
@@ -42,6 +61,5 @@ export function textOn(hex: string): string {
   const r = parseInt(n.slice(0, 2), 16);
   const g = parseInt(n.slice(2, 4), 16);
   const b = parseInt(n.slice(4, 6), 16);
-  // Luminância relativa aproximada (fórmula YIQ).
   return (r * 299 + g * 587 + b * 114) / 1000 >= 140 ? '#000000' : '#ffffff';
 }

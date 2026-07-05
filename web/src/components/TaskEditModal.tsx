@@ -104,62 +104,62 @@ export function TaskEditModal({
   }
 
   return (
-    <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/70 p-4 sm:p-6" onClick={onClose}>
+    <div className="fixed inset-0 z-30 flex items-center justify-center bg-[rgba(4,4,7,.75)] p-4 sm:p-6" onClick={onClose}>
       <form
         onSubmit={save}
         onClick={(e) => e.stopPropagation()}
-        className="max-h-[90vh] w-full max-w-lg space-y-4 overflow-y-auto rounded-2xl border border-zinc-700 bg-zinc-900 p-5 sm:p-6"
+        className="dialog-in max-h-[90vh] w-full max-w-lg space-y-3.5 overflow-y-auto rounded-[18px] border border-line-2 bg-panel p-5 sm:p-6"
       >
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Editar task</h2>
-          <button type="button" onClick={onClose} className="text-zinc-500 hover:text-zinc-200">✕</button>
+          <h2 className="font-display text-base font-semibold">Editar task</h2>
+          <button type="button" onClick={onClose} className="text-faint transition hover:text-soft">✕</button>
         </div>
 
-        {error && <p className="rounded-lg bg-red-950 px-3 py-2 text-sm text-red-300">{error}</p>}
+        {error && <p className="rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</p>}
 
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           required
           maxLength={200}
-          className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+          className="w-full rounded-[10px] border border-line-input bg-base-2 px-3 py-2.5 text-sm text-ink outline-none focus:border-brand-violet"
         />
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          rows={4}
+          rows={3}
           placeholder="Descrição"
-          className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+          className="w-full resize-y rounded-[10px] border border-line-input bg-base-2 px-3 py-2.5 text-sm text-ink outline-none focus:border-brand-violet"
         />
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <label className="block text-xs text-zinc-500">
+          <label className="block text-[11px] text-faint">
             Prioridade
             <select
               value={priority}
               onChange={(e) => setPriority(e.target.value as TaskPriority)}
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2 py-2 text-sm text-zinc-200"
+              className="mt-1 w-full rounded-lg border border-line-input bg-base-2 px-2 py-2 text-[12.5px] text-ink-2"
             >
               {PRIORITY_ORDER.map((p) => (
                 <option key={p} value={p}>{PRIORITY_META[p].label}</option>
               ))}
             </select>
           </label>
-          <label className="block text-xs text-zinc-500">
+          <label className="block text-[11px] text-faint">
             Prazo
             <input
               type="date"
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm text-zinc-200"
+              className="mt-1 w-full rounded-lg border border-line-input bg-base-2 px-2 py-1.5 text-[12.5px] text-ink-2"
             />
           </label>
         </div>
 
         <div>
-          <p className="mb-1.5 text-xs text-zinc-500">Etiquetas</p>
+          <p className="mb-2 text-[11px] text-faint">Etiquetas</p>
           {sortedLabels.length === 0 ? (
-            <p className="text-xs text-zinc-600">Nenhuma etiqueta no workspace ainda — crie em “Etiquetas”.</p>
+            <p className="text-xs text-faint">Nenhuma etiqueta no workspace ainda — crie em “Etiquetas”.</p>
           ) : (
             <div className="flex flex-wrap gap-1.5">
               {sortedLabels.map((l) => {
@@ -170,8 +170,8 @@ export function TaskEditModal({
                     type="button"
                     onClick={() => toggleLabel(l.id)}
                     style={on ? { backgroundColor: l.color, color: textOn(l.color) } : undefined}
-                    className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
-                      on ? '' : 'border border-zinc-700 text-zinc-400 hover:border-zinc-500'
+                    className={`rounded-full px-2.5 py-1 text-[11.5px] font-semibold transition ${
+                      on ? '' : 'border border-line-2 text-soft-2 hover:border-faint'
                     }`}
                   >
                     {l.name}
@@ -183,24 +183,21 @@ export function TaskEditModal({
         </div>
 
         {task.githubIssueNumber != null && (
-          <p className="text-xs text-zinc-500">
+          <p className="text-xs text-faint">
             Título e descrição são espelhados na Issue #{task.githubIssueNumber} do GitHub.
           </p>
         )}
 
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between pt-1">
           <button
             type="button"
             onClick={remove}
             disabled={busy}
-            className="rounded-lg border border-red-900 px-4 py-2 text-sm text-red-400 hover:bg-red-950 disabled:opacity-50"
+            className="rounded-[10px] border border-[#5c1f26] px-4 py-2 text-[12.5px] font-semibold text-red-400 transition hover:bg-red-500/10 disabled:opacity-50"
           >
             Apagar task
           </button>
-          <button
-            disabled={busy}
-            className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium hover:bg-indigo-500 disabled:opacity-50"
-          >
+          <button disabled={busy} className="btn-brand rounded-[10px] px-5 py-2 text-[13px]">
             {busy ? 'Salvando…' : 'Salvar'}
           </button>
         </div>

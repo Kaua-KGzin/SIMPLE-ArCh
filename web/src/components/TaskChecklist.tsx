@@ -66,11 +66,11 @@ export function TaskChecklist({
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+        <p className="text-[10.5px] font-bold uppercase tracking-[.05em] text-faint">
           Checklist {items.length > 0 && `(${done}/${items.length})`}
         </p>
         {items.length > 0 && (
-          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-zinc-800">
+          <div className="h-1 flex-1 overflow-hidden rounded-full bg-[#1a1a22]">
             <div
               className="h-full rounded-full bg-green-500 transition-all"
               style={{ width: `${(done / items.length) * 100}%` }}
@@ -81,20 +81,20 @@ export function TaskChecklist({
 
       <ul className="space-y-1">
         {items.map((item) => (
-          <li key={item.id} className="group/ci flex items-center gap-2 text-sm">
+          <li key={item.id} className="group/ci flex items-center gap-2 text-xs">
             <input
               type="checkbox"
               checked={item.done}
               onChange={() => void toggle(item)}
-              className={`h-3.5 w-3.5 shrink-0 accent-green-500 ${justChecked === item.id ? 'check-pop' : ''}`}
+              className={`h-[13px] w-[13px] shrink-0 accent-green-500 ${justChecked === item.id ? 'check-pop' : ''}`}
             />
-            <span className={`flex-1 ${item.done ? 'text-zinc-600 line-through' : 'text-zinc-300'}`}>
+            <span className={`flex-1 ${item.done ? 'text-faint-3 line-through' : 'text-soft'}`}>
               {item.text}
             </span>
             <button
               onClick={() => void remove(item)}
               title="Remover item"
-              className="hidden shrink-0 text-zinc-600 hover:text-red-400 group-hover/ci:block"
+              className="hidden shrink-0 text-faint-3 hover:text-red-400 group-hover/ci:block"
             >
               ✕
             </button>
@@ -108,11 +108,11 @@ export function TaskChecklist({
           onChange={(e) => setText(e.target.value)}
           placeholder="Adicionar item…"
           maxLength={300}
-          className="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs outline-none focus:border-indigo-500"
+          className="min-w-0 flex-1 rounded-[7px] border border-line-input bg-base-2 px-2 py-1.5 text-[11.5px] text-ink outline-none focus:border-brand-violet"
         />
         <button
           disabled={busy || !text.trim()}
-          className="shrink-0 rounded-lg bg-zinc-700 px-3 py-1 text-xs hover:bg-zinc-600 disabled:opacity-40"
+          className="shrink-0 rounded-[7px] bg-raised px-3 text-soft transition hover:brightness-125 disabled:opacity-40"
         >
           +
         </button>
