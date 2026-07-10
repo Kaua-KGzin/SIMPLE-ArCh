@@ -30,6 +30,7 @@ import { LabelsController } from './labels/labels.controller';
 import { LabelsService } from './labels/labels.service';
 import { ChecklistController } from './checklist/checklist.controller';
 import { ChecklistService } from './checklist/checklist.service';
+import { ClairvoyanceModule } from './clairvoyance/clairvoyance.module';
 
 /**
  * Módulo raiz. Aqui o container de Injeção de Dependência do Nest é montado:
@@ -50,6 +51,7 @@ import { ChecklistService } from './checklist/checklist.service';
     // Limite padrão generoso (não afeta uso normal da API); as rotas de
     // login/registro apertam esse limite via @Throttle — ver LocalAuthController.
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
+    ClairvoyanceModule,
   ],
   controllers: [
     AuthController,
