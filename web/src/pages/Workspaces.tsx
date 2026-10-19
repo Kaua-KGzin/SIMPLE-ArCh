@@ -5,6 +5,7 @@ import { auth } from '../lib/auth';
 import { toast } from '../lib/toast';
 import { confirmDialog } from '../lib/confirm';
 import { AppBackground } from '../components/AppBackground';
+import { ArchLinePanel } from '../components/ArchLinePanel';
 import { Skeleton } from '../components/Skeleton';
 import { IconNodes, IconHexagon } from '../components/icons';
 import { textOn } from '../lib/task-meta';
@@ -212,6 +213,8 @@ export function Workspaces() {
             ))}
           </div>
         )}
+
+        <ArchLinePanel />
       </div>
     </div>
   );

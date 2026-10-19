@@ -6,3 +6,7 @@ dist/
 # Memoria interna do Claude Code (notas/ids internos de desenvolvimento)
 CLAUDE.md
 .claude/
+
+# ArchMAP analysis cache (archmap hub-report / analyze)
+.archmap/
+.codeatlas/

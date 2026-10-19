@@ -124,3 +124,18 @@ textarea::placeholder { color: var(--color-faint-2); }
   .toast-in,.dialog-in,.panel-in,.card-in,.fade-up,.badge-pop,.check-pop,.pulse-dot,.anim-glow,.spin,.skeleton { animation: none; }
   ::view-transition-group(*),::view-transition-old(*),::view-transition-new(*) { animation: none !important; }
 }
+
+/* ==========================================================================
+   Linha Arch — tokens compartilhados (cópia de System-Arch/brand/arch-line.css,
+   só o que este app usa). Edite lá primeiro.
+   ========================================================================== */
+:root {
+  --arch-status-up: #2fbf71;
+  --arch-status-down: #e5484d;
+  --arch-status-unknown: #a1a8b8;
+  --arch-grade-a: #2fbf71;
+  --arch-grade-b: #7cc46a;
+  --arch-grade-c: #e5b53a;
+  --arch-grade-d: #f08c3a;
+  --arch-grade-f: #e5484d;
+}
