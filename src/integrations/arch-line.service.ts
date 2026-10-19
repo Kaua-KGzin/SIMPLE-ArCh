@@ -86,7 +86,13 @@ export function buildArchLineSystems(systems: unknown, architecture: unknown): A
   for (const raw of Array.isArray(architecture) ? architecture : []) {
     const entry = raw as Json;
     const id = str(entry.systemId);
-    if (!id || result.has(id)) continue;
+    if (!id) continue;
+    const existing = result.get(id);
+    if (existing) {
+      // Registered system: keep its status/metadata, fill the score if /systems didn't carry it.
+      existing.architecture ??= toScore(entry.architecture);
+      continue;
+    }
     result.set(id, {
       id,
       name: id,

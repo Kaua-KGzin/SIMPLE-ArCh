@@ -39,6 +39,17 @@ describe('buildArchLineSystems', () => {
     expect(systems.find((s) => s.id === 'archmap')!.architecture?.score).toBe(28);
   });
 
+  it('preenche o score de um sistema registrado a partir de /architecture', () => {
+    const registeredWithoutScore = [{ id: 'system-pvd', name: 'ARCHNEXUS', status: 'UP', baseUrl: 'http://pvd', tags: [] }];
+    const architecture = [{ systemId: 'system-pvd', architecture: { latest: { score: 54, grade: 'D' }, delta: 3 } }];
+
+    const [pvd] = buildArchLineSystems(registeredWithoutScore, architecture);
+
+    expect(pvd.status).toBe('UP');
+    expect(pvd.url).toBe('http://pvd');
+    expect(pvd.architecture).toEqual({ score: 54, grade: 'D', delta: 3, analyzedAt: null });
+  });
+
   it('tolera respostas inesperadas do Hub', () => {
     expect(buildArchLineSystems(null, { not: 'a list' })).toEqual([]);
   });
