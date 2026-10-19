@@ -8,7 +8,7 @@ comentários (com @menções) e notificações pessoais (menção, atribuição 
 task) atualizam em tempo real via WebSocket.
 
 ## Stack
-- **Backend:** NestJS + Prisma + PostgreSQL (GitHub OAuth, JWT, webhooks HMAC, WebSocket via Socket.IO)
+- **Backend:** NestJS 11 (Express 5) + Prisma + PostgreSQL (GitHub OAuth, JWT, webhooks HMAC, WebSocket via Socket.IO)
 - **Frontend:** React + Vite + Tailwind (board kanban com drag & drop)
 
 ## Rodar em dev
@@ -32,8 +32,16 @@ enxergam pelo [Arch Hub](https://github.com/Kaua-KGzin/System-Arch/blob/main/doc
 | [SIMPLE ArCh](https://github.com/Kaua-KGzin/SIMPLE-ArCh) | collaboration | boards e tasks com sync GitHub |
 | [ArchMAP](https://github.com/Kaua-KGzin/ArchMAP) | insight | análise estática de arquitetura |
 
-Para aparecer no Hub, defina `ARCHHUB_URL` (e `ARCHHUB_TOKEN`, se o Hub exigir).
-Sem ela, nada muda. Detalhes em `src/integrations/arch-hub.service.ts` e no
+Com `ARCHHUB_URL` definida (e `ARCHHUB_TOKEN`, se o Hub exigir — de
+preferência o token próprio do `simple-arch`):
+
+- a API se registra no Hub e manda heartbeat (`src/integrations/arch-hub.service.ts`);
+- a home mostra o painel **Linha Arch**: status e nota de arquitetura (ArchMAP)
+  de cada sistema irmão, lidos do Hub pelo backend (`GET /arch-line`, cache de 15s;
+  o token do Hub nunca vai para o browser);
+- o workflow `Arch line` publica a nota deste repositório no Hub.
+
+Sem ela, nada muda — o painel nem aparece. Contrato completo no
 [contrato da linha](https://github.com/Kaua-KGzin/System-Arch/blob/main/docs/ARCH-LINE.md). Manifesto: `arch.json`.
 
 ## Deploy (Vercel + Supabase)
