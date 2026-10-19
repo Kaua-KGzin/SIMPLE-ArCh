@@ -1,0 +1,19 @@
+# Arch line: publishes this repository's architecture score (ArchMAP) to the
+# Arch Hub. Optional secrets: ARCHHUB_URL, ARCHHUB_TOKEN — without them the
+# score only goes to the run summary. See System-Arch docs/ARCH-LINE.md.
+name: Arch line
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  architecture:
+    uses: Kaua-KGzin/ArchMAP/.github/workflows/arch-line-report.yml@main
+    secrets: inherit

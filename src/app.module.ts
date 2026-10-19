@@ -32,6 +32,8 @@ import { ChecklistController } from './checklist/checklist.controller';
 import { ChecklistService } from './checklist/checklist.service';
 import { ClairvoyanceModule } from './clairvoyance/clairvoyance.module';
 import { ArchHubService } from './integrations/arch-hub.service';
+import { ArchLineController } from './integrations/arch-line.controller';
+import { ArchLineService } from './integrations/arch-line.service';
 
 /**
  * Módulo raiz. Aqui o container de Injeção de Dependência do Nest é montado:
@@ -65,6 +67,7 @@ import { ArchHubService } from './integrations/arch-hub.service';
     LabelsController,
     ChecklistController,
     HealthController,
+    ArchLineController,
   ],
   providers: [
     PrismaService,
@@ -85,6 +88,7 @@ import { ArchHubService } from './integrations/arch-hub.service';
     // Registro opcional no Arch Hub (linha Arch). Factory porque o construtor
     // recebe config/fetch, não dependências do container.
     { provide: ArchHubService, useFactory: () => new ArchHubService() },
+    { provide: ArchLineService, useFactory: () => new ArchLineService() },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     // Reporta exceções 5xx ao Sentry sem mudar o formato de resposta de erro.
     { provide: APP_FILTER, useClass: SentryExceptionFilter },
