@@ -1,7 +1,7 @@
 {
   "name": "simple-arch",
   "version": "0.1.0",
-  "description": "Plataforma de colabora\u00e7\u00e3o de dev integrada ao GitHub (backend)",
+  "description": "Plataforma de colaboração de dev integrada ao GitHub (backend)",
   "license": "UNLICENSED",
   "scripts": {
     "build": "nest build",
@@ -13,17 +13,17 @@
     "test": "jest"
   },
   "dependencies": {
-    "@nestjs/common": "^11.1.18",
+    "@nestjs/common": "^11.2.10",
     "@nestjs/config": "^4.0.4",
-    "@nestjs/core": "^11.1.18",
+    "@nestjs/core": "^11.2.10",
     "@nestjs/jwt": "^11.0.2",
     "@nestjs/passport": "^11.0.5",
-    "@nestjs/platform-express": "^11.1.18",
-    "@nestjs/platform-socket.io": "^11.1.18",
-    "@nestjs/throttler": "^6.5.0",
-    "@nestjs/websockets": "^11.1.18",
+    "@nestjs/platform-express": "^11.2.10",
+    "@nestjs/platform-socket.io": "^11.2.10",
+    "@nestjs/throttler": "^6.7.1",
+    "@nestjs/websockets": "^11.2.10",
     "@prisma/client": "^5.20.0",
-    "@sentry/node": "^10.76.2",
+    "@sentry/node": "^11.12.0",
     "bcryptjs": "^3.0.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
@@ -39,7 +39,7 @@
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
-    "@nestjs/testing": "^11.1.18",
+    "@nestjs/testing": "^11.2.10",
     "@types/bcryptjs": "^2.4.6",
     "@types/cookie-parser": "^1.4.7",
     "@types/express": "^5.0.0",
