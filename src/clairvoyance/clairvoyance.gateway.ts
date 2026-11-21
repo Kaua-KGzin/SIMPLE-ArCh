@@ -78,17 +78,17 @@ export class ClairvoyanceGateway implements OnGatewayConnection, OnGatewayDiscon
   ) {
     const userId = client.data.userId as string | undefined;
     const workspaceId = data?.workspaceId;
-    if (!userId || !isShortString(workspaceId)) return { event: 'denied' };
+    if (!userId || !isShortString(workspaceId)) return { event: 'denied', data: { workspaceId: null } };
 
     const membership = await this.prisma.workspaceMember.findUnique({
       where: { userId_workspaceId: { userId, workspaceId } },
     });
-    if (!membership) return { event: 'denied' };
+    if (!membership) return { event: 'denied', data: { workspaceId } };
 
     const room = `workspace_${workspaceId}`;
     await client.join(room);
     (client.data.workspaces as Set<string>).add(workspaceId);
-    return { event: 'joined', room };
+    return { event: 'joined', data: { room } };
   }
 
   @SubscribeMessage('reportIntent')

@@ -96,8 +96,10 @@ describe('ClairvoyanceGateway', () => {
   it('entra na sala do workspace quando é membro', async () => {
     const { gateway } = setup();
     const socket = await connected(gateway, 'good-alice');
-    await gateway.handleJoinWorkspace({ workspaceId: 'ws-1' }, socket as never);
+    const reply = await gateway.handleJoinWorkspace({ workspaceId: 'ws-1' }, socket as never);
     expect(socket.join).toHaveBeenCalledWith('workspace_ws-1');
+    // WsResponse: o Nest emite `data` como payload; sem ele o cliente recebia `joined` vazio.
+    expect(reply).toEqual({ event: 'joined', data: { room: 'workspace_ws-1' } });
   });
 
   it('ignora intenções para um workspace em que o socket não entrou', async () => {
