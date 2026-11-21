@@ -1,4 +1,36 @@
-import { ArchHubService, resolveArchHubConfig } from './arch-hub.service';
+import {
+  ArchHubService,
+  INITIAL_RETRY_MS,
+  MAX_RETRY_MS,
+  nextArchHubDelay,
+  resolveArchHubConfig,
+} from './arch-hub.service';
+
+describe('nextArchHubDelay', () => {
+  const schedule = (heartbeatMs: number, steps: number) => {
+    let retry = INITIAL_RETRY_MS;
+    const delays: number[] = [];
+    for (let i = 0; i < steps; i++) {
+      const next = nextArchHubDelay(false, heartbeatMs, retry);
+      delays.push(next.delayMs as number);
+      retry = next.nextRetryMs;
+    }
+    return { delays, retry };
+  };
+
+  it('backoff dobra até o período do heartbeat', () => {
+    expect(schedule(20_000, 6).delays).toEqual([2_000, 4_000, 8_000, 16_000, 20_000, 20_000]);
+  });
+
+  it('sem heartbeat (Vercel) o backoff cresce até o teto em vez de nunca re-tentar', () => {
+    expect(schedule(0, 20).retry).toBe(MAX_RETRY_MS);
+  });
+
+  it('registrado: espera o heartbeat; em modo só-registro, para', () => {
+    expect(nextArchHubDelay(true, 20_000, 16_000)).toEqual({ delayMs: 20_000, nextRetryMs: INITIAL_RETRY_MS });
+    expect(nextArchHubDelay(true, 0, 2_000).delayMs).toBeNull();
+  });
+});
 
 describe('resolveArchHubConfig', () => {
   it('fica desligado sem ARCHHUB_URL', () => {
@@ -47,6 +79,24 @@ describe('ArchHubService', () => {
     const fetchFn = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'));
     const service = new ArchHubService(config, fetchFn as unknown as typeof fetch);
     await expect(service.tick()).resolves.toBeUndefined();
+  });
+
+  it.each([401, 403, 500, 503])('heartbeat recusado (HTTP %i) não conta como sucesso: re-registra', async (status) => {
+    const fetchFn = jest.fn()
+      .mockReturnValueOnce(reply(200)) // register
+      .mockReturnValueOnce(reply(status)) // heartbeat recusado
+      .mockReturnValueOnce(reply(200)); // register de novo
+    const service = new ArchHubService(config, fetchFn as unknown as typeof fetch);
+
+    await service.tick();
+    await service.tick();
+    await service.tick();
+
+    expect(fetchFn.mock.calls.map(([url]) => url)).toEqual([
+      'http://hub/api/v1/systems',
+      'http://hub/api/v1/systems/simple-arch/heartbeat',
+      'http://hub/api/v1/systems',
+    ]);
   });
 
   it('é no-op sem configuração', async () => {
