@@ -1,10 +1,17 @@
 const { io } = require("socket.io-client");
 
-// Simula a conexão de dois desenvolvedores na mesma "sala" de workspace
-const workspaceId = "1";
+// Simula dois desenvolvedores na mesma "sala" de workspace.
+// O namespace exige o JWT do REST e que os dois sejam membros do workspace:
+//   TOKEN_A=... TOKEN_B=... WORKSPACE_ID=... node scripts/simulate-ide-client.js
+const { TOKEN_A, TOKEN_B, WORKSPACE_ID, API_URL = "http://localhost:3000" } = process.env;
+if (!TOKEN_A || !TOKEN_B || !WORKSPACE_ID) {
+  console.error("Defina TOKEN_A, TOKEN_B (JWT de dois membros) e WORKSPACE_ID.");
+  process.exit(1);
+}
+const workspaceId = WORKSPACE_ID;
 
-const devA = io("http://localhost:3000/clairvoyance");
-const devB = io("http://localhost:3000/clairvoyance");
+const devA = io(`${API_URL}/clairvoyance`, { auth: { token: TOKEN_A } });
+const devB = io(`${API_URL}/clairvoyance`, { auth: { token: TOKEN_B } });
 
 function setupClient(client, name) {
   client.on("connect", () => {
@@ -15,6 +22,10 @@ function setupClient(client, name) {
 
   client.on("joined", (data) => {
     console.log(`[${name}] Entrou na sala: ${data.room}`);
+  });
+
+  client.on("denied", () => {
+    console.log(`[${name}] Entrada negada: não é membro do workspace ${workspaceId}`);
   });
 
   client.on("conflictWarning", (data) => {
@@ -42,9 +53,8 @@ setTimeout(() => {
   console.log("\n--- [Dev A] começa a editar o validateToken ---");
   devA.emit("reportIntent", {
     workspaceId,
+    // userId/githubLogin vêm do token, não do payload.
     intent: {
-      userId: "user-dev-a",
-      githubLogin: "Kaua-KGzin",
       branch: "feature/auth-refactor",
       filePathHash: "hash-src-auth-service",
       astNode: "validateToken",
@@ -58,8 +68,6 @@ setTimeout(() => {
   devB.emit("reportIntent", {
     workspaceId,
     intent: {
-      userId: "user-dev-b",
-      githubLogin: "Outro-Dev",
       branch: "hotfix/login",
       filePathHash: "hash-src-auth-service",
       astNode: "validateToken",

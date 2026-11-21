@@ -93,6 +93,7 @@ import { ArchLineService } from './integrations/arch-line.service';
     // Reporta exceções 5xx ao Sentry sem mudar o formato de resposta de erro.
     { provide: APP_FILTER, useClass: SentryExceptionFilter },
   ],
-  exports: [PrismaService],
+  // JwtModule também: o ClairvoyanceGateway valida o mesmo JWT do REST na conexão.
+  exports: [PrismaService, JwtModule],
 })
 export class AppModule {}

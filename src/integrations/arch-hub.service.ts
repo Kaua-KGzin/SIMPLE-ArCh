@@ -14,6 +14,26 @@ import { Injectable, Logger, OnApplicationBootstrap, OnModuleDestroy } from '@ne
  */
 export const ARCH_HUB_SYSTEM_ID = 'simple-arch';
 
+export const INITIAL_RETRY_MS = 2_000;
+/** Teto do backoff sem heartbeat (Vercel / ARCHHUB_HEARTBEAT_SECONDS=0): sem ele um Hub fora do ar nunca seria re-tentado. */
+export const MAX_RETRY_MS = 300_000;
+
+/**
+ * Próximo passo do ciclo do adaptador (contrato: backoff 2s, 4s, 8s… até o período do heartbeat).
+ * `delayMs: null` = parar (registrado em modo só-registro).
+ */
+export function nextArchHubDelay(
+  registered: boolean,
+  heartbeatMs: number,
+  retryMs: number,
+): { delayMs: number | null; nextRetryMs: number } {
+  if (registered) {
+    return { delayMs: heartbeatMs > 0 ? heartbeatMs : null, nextRetryMs: INITIAL_RETRY_MS };
+  }
+  const ceiling = heartbeatMs > 0 ? heartbeatMs : MAX_RETRY_MS;
+  return { delayMs: retryMs, nextRetryMs: Math.min(retryMs * 2, ceiling) };
+}
+
 export interface ArchHubConfig {
   hubUrl: string;
   token?: string;
@@ -42,6 +62,8 @@ export class ArchHubService implements OnApplicationBootstrap, OnModuleDestroy {
   private readonly logger = new Logger(ArchHubService.name);
   private timer?: NodeJS.Timeout;
   private registered = false;
+  private stopped = false;
+  private retryMs = INITIAL_RETRY_MS;
 
   constructor(
     private readonly config: ArchHubConfig | null = resolveArchHubConfig(),
@@ -50,15 +72,25 @@ export class ArchHubService implements OnApplicationBootstrap, OnModuleDestroy {
 
   onApplicationBootstrap(): void {
     if (!this.config) return;
-    void this.tick();
-    if (this.config.heartbeatMs > 0) {
-      this.timer = setInterval(() => void this.tick(), this.config.heartbeatMs);
-      this.timer.unref(); // não segura o processo vivo (testes, shutdown)
-    }
+    this.stopped = false;
+    void this.loop();
   }
 
   onModuleDestroy(): void {
-    if (this.timer) clearInterval(this.timer);
+    this.stopped = true;
+    if (this.timer) clearTimeout(this.timer);
+  }
+
+  /** Um tick e agenda o próximo: heartbeat se registrado, backoff exponencial se não. */
+  private async loop(): Promise<void> {
+    if (!this.config || this.stopped) return;
+    await this.tick();
+    if (this.stopped) return;
+    const { delayMs, nextRetryMs } = nextArchHubDelay(this.registered, this.config.heartbeatMs, this.retryMs);
+    this.retryMs = nextRetryMs;
+    if (delayMs === null) return;
+    this.timer = setTimeout(() => void this.loop(), delayMs);
+    this.timer.unref(); // não segura o processo vivo (testes, shutdown)
   }
 
   /** Registra se ainda não registrou; senão manda heartbeat. Exposto para testes. */
@@ -91,10 +123,17 @@ export class ArchHubService implements OnApplicationBootstrap, OnModuleDestroy {
     return true;
   }
 
-  /** 404 = o Hub reiniciou sem persistência e esqueceu este sistema: força novo registro. */
+  /**
+   * Só 2xx mantém o registro. 404 = o Hub reiniciou sem persistência e esqueceu este sistema;
+   * 401/403 (token rotacionado) ou 5xx antes contavam como sucesso, e o sistema ficava mandando
+   * heartbeat para um Hub que o recusava enquanto a janela stale-after o marcava DOWN.
+   */
   private async heartbeat(): Promise<boolean> {
     const res = await this.post(`/api/v1/systems/${ARCH_HUB_SYSTEM_ID}/heartbeat`);
-    return res.status !== 404;
+    if (!res.ok && res.status !== 404) {
+      this.logger.warn(`Arch Hub recusou o heartbeat: HTTP ${res.status}; registrando de novo`);
+    }
+    return res.ok;
   }
 
   private post(path: string, body?: unknown): Promise<Response> {
