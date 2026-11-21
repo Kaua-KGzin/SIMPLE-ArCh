@@ -10,6 +10,17 @@ updates:
       npm:
         patterns: ["*"]
         update-types: ["minor", "patch"]
+    # Majors que exigem migração planejada, não bump isolado:
+    # - NestJS 12 é só-ESM (o backend é CommonJS); os pacotes @nestjs/* sobem juntos, num PR próprio.
+    # - TypeScript 7 é o compilador nativo novo; o ecossistema (ts-jest, nest cli) ainda não fechou suporte.
+    # - @types/node acompanha a versão do Node do runtime/CI (22), não a última.
+    ignore:
+      - dependency-name: "@nestjs/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: "npm"
     directory: "/web"
     schedule:
@@ -19,6 +30,11 @@ updates:
       npm-web:
         patterns: ["*"]
         update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
